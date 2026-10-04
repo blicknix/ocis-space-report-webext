@@ -1,5 +1,6 @@
 // Report documents (Markdown, PDF) built from the same data the page shows.
 import { SpaceKind, SpaceRow, Summary, formatBytes, formatPercent } from './report'
+import { ORPHAN_LABEL, summarizeOrphans } from './orphans'
 
 export interface ReportMeta {
   server: string
@@ -9,6 +10,10 @@ export interface ReportMeta {
   vault: 'ok' | 'disabled' | 'mfa-required' | 'error'
   /** false: other users' personal spaces were not visible to the caller */
   complete: boolean
+  /** state of the orphan analysis; only 'ok' produces numbers */
+  orphans?: 'ok' | 'skipped' | 'error' | 'pending' | 'running'
+  /** users/groups that could not be verified */
+  orphansUnverified?: number
 }
 
 export interface ReportData {
@@ -73,6 +78,41 @@ export function sections({ meta, summary, rows }: ReportData) {
     ['Median per personal space', formatBytes(median)]
   ]
 
+  const orphanCheck = meta.orphans === 'ok'
+  const o = summarizeOrphans(rows)
+  if (orphanCheck) {
+    keyFigures.push(
+      ['Orphaned spaces', String(o.total)],
+      ['Storage in orphaned spaces', formatBytes(o.used)],
+      ['- personal, owner no longer exists', String(o.personalOwnerMissing)],
+      ['- project, no members', String(o.projectNoMembers)],
+      ['- project, all members deleted/empty', String(o.projectMembersGone)],
+      ['Projects without manager', String(o.noManager)],
+      ['Personal spaces of disabled accounts', String(o.ownerDisabled)]
+    )
+    if (meta.orphansUnverified) {
+      notes.push(
+        `${meta.orphansUnverified} users/groups could not be verified; spaces depending on them are not counted as orphaned.`
+      )
+    }
+  } else {
+    notes.push(
+      meta.orphans === 'skipped'
+        ? 'Orphaned spaces were not checked (requires the Admin role).'
+        : 'Orphaned spaces could not be checked.'
+    )
+  }
+  const orphans = rows
+    .filter((r) => r.orphan)
+    .sort((a, b) => b.used - a.used)
+    .map((r) => [
+      KIND_LABEL[r.kind],
+      r.name + (r.disabled ? ' (disabled)' : ''),
+      ORPHAN_LABEL[r.orphan!],
+      formatBytes(r.used),
+      shortDate(r.lastModified)
+    ])
+
   const largest = summary.largest.map((r, i) => [String(i + 1), r.name, KIND_LABEL[r.kind], formatBytes(r.used)])
   const fullest = summary.fullest.map((r, i) => [
     String(i + 1),
@@ -85,7 +125,7 @@ export function sections({ meta, summary, rows }: ReportData) {
     .sort((a, b) => b.used - a.used)
     .map((r) => [
       KIND_LABEL[r.kind],
-      r.name + (r.disabled ? ' (disabled)' : ''),
+      r.name + (r.disabled ? ' (disabled)' : '') + (r.orphan ? ' [orphaned]' : r.noManager ? ' [no manager]' : ''),
       r.owner,
       formatBytes(r.used),
       r.quota ? formatBytes(r.quota) : 'unlimited',
@@ -93,7 +133,7 @@ export function sections({ meta, summary, rows }: ReportData) {
       shortDate(r.lastModified)
     ])
 
-  return { notes, overview, keyFigures, largest, fullest, all }
+  return { notes, overview, keyFigures, largest, fullest, all, orphanCheck, orphans }
 }
 
 // ---- Markdown -----------------------------------------------------------------------------
@@ -136,6 +176,16 @@ export function buildMarkdown(data: ReportData): string {
       ? mdTable(['#', 'Space', 'Type', 'Full', 'Used / Quota'], s.fullest, [0, 3, 4])
       : '_No spaces with a quota_',
     '',
+    ...(s.orphanCheck
+      ? [
+          `## Orphaned spaces (${s.orphans.length})`,
+          '',
+          s.orphans.length
+            ? mdTable(['Type', 'Space', 'Reason', 'Used', 'Last modified'], s.orphans, [3, 4])
+            : '_No orphaned spaces found._',
+          ''
+        ]
+      : []),
     `## All spaces (${s.all.length})`,
     '',
     mdTable(['Type', 'Name', 'Owner', 'Used', 'Quota', 'Full', 'Last modified'], s.all, [3, 4, 5, 6]),

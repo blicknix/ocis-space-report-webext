@@ -13,8 +13,28 @@ export interface GraphDrive {
   lastModifiedDateTime?: string
   owner?: { user?: { id?: string; displayName?: string } }
   quota?: { total?: number; used?: number; remaining?: number; state?: string }
-  root?: { deleted?: { state?: string } }
+  root?: { deleted?: { state?: string }; permissions?: GraphPermission[] }
 }
+
+/** Space membership as listed in drive.root.permissions (v1beta1) */
+export interface GraphPermission {
+  roles?: string[]
+  grantedToV2?: {
+    user?: { id?: string; displayName?: string }
+    group?: { id?: string; displayName?: string }
+  }
+}
+
+export interface Member {
+  type: 'user' | 'group'
+  id: string
+  manager: boolean
+}
+
+export type OrphanReason = 'owner-missing' | 'no-members' | 'members-gone'
+
+/** "Manager" unified role (and the legacy v1 name) */
+export const MANAGER_ROLES = ['312c0871-5ef7-4b3a-85b6-0e4074c64049', 'manager']
 
 export interface SpaceRow {
   id: string
@@ -29,6 +49,12 @@ export interface SpaceRow {
   state: QuotaState
   disabled: boolean
   lastModified: string | null
+  ownerId: string
+  members: Member[]
+  /** set by the orphan analysis */
+  orphan?: OrphanReason | null
+  ownerDisabled?: boolean
+  noManager?: boolean
 }
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
@@ -52,7 +78,16 @@ export function toRow(d: GraphDrive, vault: boolean): SpaceRow | null {
     ratio: quota ? used / quota : null,
     state: toState(d.quota?.state),
     disabled: d.root?.deleted?.state === 'trashed',
-    lastModified: d.lastModifiedDateTime || null
+    lastModified: d.lastModifiedDateTime || null,
+    ownerId: d.owner?.user?.id || '',
+    members: (d.root?.permissions || []).flatMap((p): Member[] => {
+      const manager = (p.roles || []).some((r) => MANAGER_ROLES.includes(r))
+      const u = p.grantedToV2?.user?.id
+      const g = p.grantedToV2?.group?.id
+      if (u) return [{ type: 'user', id: u, manager }]
+      if (g) return [{ type: 'group', id: g, manager }]
+      return []
+    })
   }
 }
 
@@ -158,6 +193,9 @@ export function toCsv(rows: SpaceRow[]): string {
     'used_percent',
     'quota_state',
     'disabled',
+    'orphaned',
+    'owner_disabled',
+    'no_manager',
     'last_modified',
     'id'
   ]
@@ -171,6 +209,9 @@ export function toCsv(rows: SpaceRow[]): string {
       r.ratio === null ? '' : (r.ratio * 100).toFixed(2),
       r.state,
       r.disabled ? 'yes' : 'no',
+      r.orphan || '',
+      r.ownerDisabled ? 'yes' : '',
+      r.noManager ? 'yes' : '',
       r.lastModified || '',
       r.id
     ]

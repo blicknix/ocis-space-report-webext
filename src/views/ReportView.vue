@@ -14,16 +14,16 @@
         <oc-button :disabled="loading" @click="load">
           <oc-icon name="refresh" size="small" />{{ $gettext('Refresh') }}
         </oc-button>
-        <oc-button :disabled="!rows.length || exporting" @click="downloadPdf">
+        <oc-button :disabled="!rows.length || exporting || orphanStatus === 'running'" @click="downloadPdf">
           <oc-icon name="file-pdf" size="small" />PDF
         </oc-button>
-        <oc-button :disabled="!rows.length" @click="downloadMarkdown">
+        <oc-button :disabled="!rows.length || orphanStatus === 'running'" @click="downloadMarkdown">
           <oc-icon name="markdown" size="small" />Markdown
         </oc-button>
         <oc-button
           id="space-report-save-btn"
           v-oc-tooltip="personalSpace ? '' : $gettext('You have no personal space to save into')"
-          :disabled="!rows.length || saving || !personalSpace"
+          :disabled="!rows.length || saving || !personalSpace || orphanStatus === 'running'"
         >
           <oc-icon :name="saving ? 'loader-4' : 'save'" size="small" />{{ $gettext('Save to my files') }}
         </oc-button>
@@ -126,6 +126,35 @@
             {{ $gettext('%{n} at or over quota', { n: String(summary.total.exceeded) }) }}
           </div>
         </div>
+        <div
+          class="space-report-tile"
+          :class="{ 'space-report-tile-warn': orphanStatus === 'ok' && orphanSummary.total }"
+        >
+          <div class="space-report-tile-label">{{ $gettext('Orphaned spaces') }}</div>
+          <template v-if="orphanStatus === 'ok'">
+            <div class="space-report-tile-value">{{ orphanSummary.total }}</div>
+            <div class="space-report-tile-sub">
+              {{
+                $gettext('%{p} personal · %{s} project · %{size}', {
+                  p: String(orphanSummary.personalOwnerMissing),
+                  s: String(orphanSummary.projectNoMembers + orphanSummary.projectMembersGone),
+                  size: formatBytes(orphanSummary.used)
+                })
+              }}
+            </div>
+          </template>
+          <template v-else>
+            <div class="space-report-tile-value">
+              <oc-spinner v-if="orphanStatus === 'running' || orphanStatus === 'pending'" size="small" :aria-label="$gettext('Checking')" />
+              <span v-else>–</span>
+            </div>
+            <div class="space-report-tile-sub">
+              <template v-if="orphanStatus === 'skipped'">{{ $gettext('needs the Admin role') }}</template>
+              <template v-else-if="orphanStatus === 'error'">{{ $gettext('check failed') }}</template>
+              <template v-else>{{ $gettext('checking users and groups…') }}</template>
+            </div>
+          </template>
+        </div>
         <div class="space-report-tile">
           <div class="space-report-tile-label">{{ $gettext('Avg. per personal space') }}</div>
           <div class="space-report-tile-value">{{ formatBytes(avgPersonal) }}</div>
@@ -175,6 +204,64 @@
         </div>
       </section>
 
+      <!-- orphaned spaces -->
+      <section v-if="orphanStatus === 'ok'" class="oc-mb-l">
+        <h2 class="oc-mb-s">{{ $gettext('Orphaned spaces') }}</h2>
+        <p class="oc-text-small oc-text-muted oc-mt-rm">
+          {{
+            $gettext(
+              'Personal spaces whose owner no longer exists in the user backend, and project spaces without members or whose members were all deleted (or are empty groups).'
+            )
+          }}
+        </p>
+        <table v-if="orphanRows.length" class="space-report-table oc-mb-s">
+          <thead>
+            <tr>
+              <th>{{ $gettext('Type') }}</th>
+              <th>{{ $gettext('Name') }}</th>
+              <th>{{ $gettext('Reason') }}</th>
+              <th class="space-report-num">{{ $gettext('Used') }}</th>
+              <th class="space-report-num">{{ $gettext('Last modified') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in orphanRows" :key="'o' + r.kind + r.id">
+              <td>{{ kindLabel(r.kind) }}</td>
+              <td>
+                {{ r.name }}
+                <span v-if="r.disabled" class="oc-text-small oc-text-muted">({{ $gettext('disabled') }})</span>
+              </td>
+              <td>{{ orphanLabel(r) }}</td>
+              <td class="space-report-num">{{ formatBytes(r.used) }}</td>
+              <td class="space-report-num">{{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">{{ $gettext('%{n} spaces', { n: String(orphanRows.length) }) }}</td>
+              <td class="space-report-num">{{ formatBytes(orphanSummary.used) }}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+        <p v-else class="oc-text-muted">{{ $gettext('No orphaned spaces found.') }}</p>
+        <ul class="oc-text-small space-report-hints">
+          <li v-if="orphanSummary.noManager">
+            {{ $gettext('%{n} project spaces have members but no manager.', { n: String(orphanSummary.noManager) }) }}
+          </li>
+          <li v-if="orphanSummary.ownerDisabled">
+            {{ $gettext('%{n} personal spaces belong to disabled accounts.', { n: String(orphanSummary.ownerDisabled) }) }}
+          </li>
+          <li v-if="orphanUnverified">
+            {{
+              $gettext('%{n} users/groups could not be verified; spaces depending on them are not counted as orphaned.', {
+                n: String(orphanUnverified)
+              })
+            }}
+          </li>
+        </ul>
+      </section>
+
       <!-- full list -->
       <section>
         <div class="space-report-filters oc-mb-s no-print">
@@ -214,6 +301,8 @@
               <td>
                 {{ r.name }}
                 <span v-if="r.disabled" class="oc-text-small oc-text-muted">({{ $gettext('disabled') }})</span>
+                <span v-if="r.orphan" class="space-report-badge">{{ $gettext('orphaned') }}</span>
+                <span v-else-if="r.noManager" class="space-report-badge space-report-badge-soft">{{ $gettext('no manager') }}</span>
               </td>
               <td>{{ r.owner }}</td>
               <td class="space-report-num">{{ formatBytes(r.used) }}</td>
@@ -258,7 +347,8 @@ import {
   useUserStore
 } from '@ownclouders/web-pkg'
 import { useCapabilityStore } from '../compat'
-import { fetchDrives, GraphError } from '../api'
+import { exists, fetchDrives, fetchGroups, fetchUsers, GraphError } from '../api'
+import { ORPHAN_LABEL, analyzeOrphans, summarizeOrphans } from '../orphans'
 import {
   SpaceKind,
   SpaceRow,
@@ -293,6 +383,8 @@ const error = ref<string | null>(null)
 const rows = ref<SpaceRow[]>([])
 const vaultStatus = ref<'ok' | 'disabled' | 'mfa-required' | 'error'>('disabled')
 const generatedAt = ref<Date | null>(null)
+const orphanStatus = ref<'pending' | 'running' | 'ok' | 'skipped' | 'error'>('pending')
+const orphanUnverified = ref(0)
 
 const canSeeForeignPersonal = computed(() => can('read-all', 'Account'))
 const serverHost = computed(() => {
@@ -340,6 +432,8 @@ const load = async () => {
     }
     rows.value = [...toRows(personal), ...toRows(project), ...vaultRows]
     generatedAt.value = new Date()
+    loading.value = false
+    await runOrphanAnalysis(signal)
   } catch (e) {
     if (signal.aborted) return
     console.error('[space-report]', e)
@@ -349,7 +443,61 @@ const load = async () => {
   }
 }
 
+/** Cross-checks owners and members against the user/group backend (admins only). */
+const runOrphanAnalysis = async (signal: AbortSignal) => {
+  orphanUnverified.value = 0
+  if (!unref(canSeeForeignPersonal)) {
+    orphanStatus.value = 'skipped'
+    return
+  }
+  orphanStatus.value = 'running'
+  const { serverUrl } = configStore
+  const token = authStore.accessToken
+  try {
+    const [users, groups] = await Promise.all([
+      fetchUsers(serverUrl, token, signal),
+      // without the group list, group memberships are treated as "unknown", never as orphaned
+      fetchGroups(serverUrl, token, signal).catch((e) => {
+        console.warn('[space-report] groups', e)
+        return null
+      })
+    ])
+    const result = await analyzeOrphans({
+      rows: unref(rows),
+      users,
+      groups,
+      lookups: {
+        userExists: (id) => exists(serverUrl, token, 'users', id, signal),
+        groupExists: (id) => exists(serverUrl, token, 'groups', id, signal)
+      }
+    })
+    if (signal.aborted) return
+    rows.value = result.rows
+    orphanUnverified.value = result.unverified
+    orphanStatus.value = 'ok'
+  } catch (e) {
+    if (signal.aborted) return
+    console.error('[space-report] orphan analysis', e)
+    orphanStatus.value = 'error'
+  }
+}
+
 onMounted(load)
+
+const orphanSummary = computed(() => summarizeOrphans(unref(rows)))
+const orphanRows = computed(() =>
+  unref(rows)
+    .filter((r) => r.orphan)
+    .sort((a, b) => b.used - a.used)
+)
+const orphanLabel = (r: SpaceRow) =>
+  r.orphan
+    ? {
+        'owner-missing': $gettext('Owner no longer exists'),
+        'no-members': $gettext('No members'),
+        'members-gone': $gettext('All members deleted or empty groups')
+      }[r.orphan] || ORPHAN_LABEL[r.orphan]
+    : ''
 
 // ---- summary --------------------------------------------------------------------------------
 
@@ -390,12 +538,15 @@ const kindLabel = (k: SpaceKind) =>
     'vault-project': $gettext('Vault project')
   })[k]
 
-const kindFilter = ref<'all' | 'personal' | 'project' | 'vault'>('all')
+const kindFilter = ref<'all' | 'personal' | 'project' | 'vault' | 'orphaned'>('all')
 const kindFilters = computed(() => [
   { value: 'all' as const, label: $gettext('All') },
   { value: 'personal' as const, label: $gettext('Personal') },
   { value: 'project' as const, label: $gettext('Project') },
-  ...(unref(vaultStatus) === 'ok' ? [{ value: 'vault' as const, label: $gettext('Vault') }] : [])
+  ...(unref(vaultStatus) === 'ok' ? [{ value: 'vault' as const, label: $gettext('Vault') }] : []),
+  ...(unref(orphanStatus) === 'ok'
+    ? [{ value: 'orphaned' as const, label: $gettext('Orphaned') }]
+    : [])
 ])
 
 const search = ref('')
@@ -430,7 +581,8 @@ const filteredRows = computed(() => {
   return unref(rows)
     .filter((r) => {
       if (kind === 'vault' && !r.kind.startsWith('vault-')) return false
-      if (kind !== 'all' && kind !== 'vault' && r.kind !== kind) return false
+      if (kind === 'orphaned' && !r.orphan) return false
+      if ((kind === 'personal' || kind === 'project') && r.kind !== kind) return false
       return !q || r.name.toLowerCase().includes(q) || r.owner.toLowerCase().includes(q)
     })
     .sort((a, b) => {
@@ -459,7 +611,9 @@ const reportData = (): ReportData => ({
     generatedBy: userStore.user?.displayName || userStore.user?.onPremisesSamAccountName || '',
     thresholdPercent: unref(thresholdPercent),
     vault: unref(vaultStatus),
-    complete: unref(canSeeForeignPersonal)
+    complete: unref(canSeeForeignPersonal),
+    orphans: unref(orphanStatus),
+    orphansUnverified: unref(orphanUnverified)
   },
   summary: unref(summary),
   rows: unref(rows)
@@ -692,6 +846,23 @@ const print = () => {
 .space-report-warn-text {
   color: var(--oc-role-error, #c62828);
   font-weight: 600;
+}
+.space-report-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--oc-role-error, #c62828);
+  color: var(--oc-role-on-error, #fff);
+}
+.space-report-badge-soft {
+  background: var(--oc-role-surface-container-high, #eee);
+  color: inherit;
+}
+.space-report-hints {
+  margin: 0;
+  padding-left: 1.2rem;
 }
 .space-report-row-disabled {
   opacity: 0.6;

@@ -46,6 +46,23 @@ describe('buildMarkdown', () => {
   })
 })
 
+describe('orphans in exports', () => {
+  it('adds key figures and the orphan table when the check ran', () => {
+    const orphaned = rows.map((r) => (r.id === 'p2' ? { ...r, orphan: 'owner-missing' as const } : { ...r, orphan: null }))
+    const md = buildMarkdown({ ...data({ orphans: 'ok' }), rows: orphaned })
+    expect(md).toContain('| Orphaned spaces | 1 |')
+    expect(md).toContain('| Storage in orphaned spaces | 1.0 GB |')
+    expect(md).toContain('## Orphaned spaces (1)')
+    expect(md).toContain('| Personal | Bob | Owner no longer exists | 1.0 GB | - |')
+    expect(md).toContain('Bob [orphaned]')
+  })
+
+  it('says why the check is missing otherwise', () => {
+    expect(buildMarkdown(data({ orphans: 'skipped' }))).toContain('> Orphaned spaces were not checked (requires the Admin role).')
+    expect(buildMarkdown(data({ orphans: 'skipped' }))).not.toContain('## Orphaned spaces')
+  })
+})
+
 describe('buildPdf', () => {
   it('produces a multi-page PDF', async () => {
     const blob = buildPdf(data())

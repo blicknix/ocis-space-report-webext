@@ -124,6 +124,19 @@ export function buildPdf(data: ReportData): Blob {
   })
   y = nextY()
 
+  if (s.orphanCheck) {
+    heading(`Orphaned spaces (${s.orphans.length})`)
+    autoTable(doc, {
+      ...tableDefaults,
+      startY: y,
+      head: [['Type', 'Space', 'Reason', 'Used', 'Modified']],
+      body: s.orphans.length ? safeRows(s.orphans) : [['', 'No orphaned spaces found', '', '', '']],
+      columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right', cellWidth: 20 } },
+      didParseCell: withHead()
+    })
+    y = nextY()
+  }
+
   doc.addPage()
   y = margin
   heading(`All spaces (${s.all.length})`)

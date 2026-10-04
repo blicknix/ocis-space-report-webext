@@ -13,6 +13,11 @@ A status report of all spaces for admins, in the oCIS Web UI.
 - **Alerts**
   - spaces at or above a fill threshold (default 90 %)
   - spaces at or over their quota
+- **Orphaned spaces** (Admin role only), with the storage they hold:
+  - personal spaces whose owner no longer exists in the user backend (e.g. deleted in LDAP/Keycloak)
+  - project spaces without any member
+  - project spaces whose members are all deleted users, deleted groups or empty groups
+  - also listed, but not counted as orphaned: projects without a manager, personal spaces of disabled accounts
 - **Top lists**
   - largest spaces
   - fullest spaces, measured against their quota
@@ -44,6 +49,7 @@ GET /graph/v1beta1/drives?$filter=driveType eq project
 GET /vault/graph/v1beta1/drives?...        # only if Vault mode is enabled
 ```
 
+- The orphan check additionally reads `GET /graph/v1.0/users` and `GET /graph/v1.0/groups?$expand=members`. oCIS reads these without paging, so an LDAP size limit can cut the lists short. Every owner or member missing from a list is therefore confirmed with a direct lookup (`/users/{id}`, `/groups/{id}`). Only a 404 counts as "gone"; lookup errors are reported as "not verified" and never counted as orphaned. At most 500 lookups per run (8 in parallel).
 - Usage and quota come from `quota.used` and `quota.total` of each space, as reported by oCIS.
 - These are space quotas, not raw bytes on the storage backend. Trash and versions count only as far as oCIS includes them in `quota.used`.
 - Every refresh is a live query. Nothing is stored unless you use "Save to my files".
@@ -78,6 +84,7 @@ npm run check-types
 | `src/report.ts` | Normalising, aggregation, formatting, CSV (pure, tested) |
 | `src/export.ts` | Report content model + Markdown |
 | `src/pdf.ts` | PDF layout (jsPDF + autotable) |
+| `src/orphans.ts` | Orphan analysis (pure, tested) |
 | `src/save.ts` | Saving into the personal space (WebDAV) |
 | `src/api.ts` | Graph call |
 | `src/views/ReportView.vue` | The page |
