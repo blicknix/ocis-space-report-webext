@@ -14,6 +14,12 @@
         <oc-button :disabled="loading" @click="load">
           <oc-icon name="refresh" size="small" />{{ $gettext('Refresh') }}
         </oc-button>
+        <oc-button :disabled="!rows.length || exporting" @click="downloadPdf">
+          <oc-icon name="file-pdf" size="small" />PDF
+        </oc-button>
+        <oc-button :disabled="!rows.length" @click="downloadMarkdown">
+          <oc-icon name="markdown" size="small" />Markdown
+        </oc-button>
         <oc-button :disabled="!rows.length" @click="downloadCsv">
           <oc-icon name="file-download" size="small" />CSV
         </oc-button>
@@ -212,7 +218,13 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, unref, watch } from 'vue'
 import { useGettext } from 'vue3-gettext'
-import { useAbility, useAuthStore, useConfigStore } from '@ownclouders/web-pkg'
+import {
+  useAbility,
+  useAuthStore,
+  useConfigStore,
+  useMessages,
+  useUserStore
+} from '@ownclouders/web-pkg'
 import { useCapabilityStore } from '../compat'
 import { fetchDrives, GraphError } from '../api'
 import {
@@ -225,6 +237,7 @@ import {
   toRows
 } from '../report'
 import { useReportConfig } from '../config'
+import { ReportData, buildMarkdown, downloadBlob, reportFileName } from '../export'
 
 type SortKey = 'kind' | 'name' | 'owner' | 'used' | 'quota' | 'ratio' | 'lastModified'
 
@@ -234,6 +247,8 @@ const configStore = useConfigStore()
 const capabilityStore = useCapabilityStore()
 const { can } = useAbility()
 const reportConfig = useReportConfig()
+const userStore = useUserStore()
+const { showErrorMessage } = useMessages()
 
 const threshold = computed(() => reportConfig.thresholdPercent / 100)
 const thresholdPercent = computed(() => reportConfig.thresholdPercent)
@@ -398,14 +413,43 @@ const filteredUsed = computed(() => unref(filteredRows).reduce((a, r) => a + r.u
 
 const downloadCsv = () => {
   const blob = new Blob([toCsv(unref(filteredRows))], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `space-report-${serverHost.value}-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  downloadBlob(blob, `space-report-${serverHost.value}-${new Date().toISOString().slice(0, 10)}.csv`)
+}
+
+/** Markdown/PDF always cover all spaces (not the current filter), like a status report should. */
+const reportData = (): ReportData => ({
+  meta: {
+    server: unref(serverHost),
+    generatedAt: unref(generatedAt) || new Date(),
+    generatedBy: userStore.user?.displayName || userStore.user?.onPremisesSamAccountName || '',
+    thresholdPercent: unref(thresholdPercent),
+    vault: unref(vaultStatus),
+    complete: unref(canSeeForeignPersonal)
+  },
+  summary: unref(summary),
+  rows: unref(rows)
+})
+
+const downloadMarkdown = () => {
+  const data = reportData()
+  const blob = new Blob([buildMarkdown(data)], { type: 'text/markdown;charset=utf-8' })
+  downloadBlob(blob, reportFileName(data.meta, 'md'))
+}
+
+const exporting = ref(false)
+const downloadPdf = async () => {
+  exporting.value = true
+  try {
+    // jsPDF is only loaded when needed
+    const { buildPdf } = await import('../pdf')
+    const data = reportData()
+    downloadBlob(buildPdf(data), reportFileName(data.meta, 'pdf'))
+  } catch (e) {
+    console.error('[space-report] pdf', e)
+    showErrorMessage({ title: $gettext('Creating the PDF failed'), errors: [e as Error] })
+  } finally {
+    exporting.value = false
+  }
 }
 
 const print = () => {

@@ -16,7 +16,14 @@ A status report of all spaces for admins, in the oCIS Web UI.
 - **Top lists**
   - largest spaces
   - fullest spaces, measured against their quota
-- **Table** of every space: type, name, owner, used, quota, % full, last modified. It is sortable and searchable, with CSV export and print.
+- **Table** of every space: type, name, owner, used, quota, % full, last modified. It is sortable and searchable.
+- **Exports**, generated in the browser (nothing is stored on the server):
+  - **PDF**: A4 report with overview, key figures, top lists and the full space list, with page numbers. Built with jsPDF using the standard Helvetica font, so characters outside Latin-1 (e.g. Greek, CJK) print as `?`.
+  - **Markdown**: the same content as tables, e.g. for a wiki or ticket.
+  - **CSV**: the rows currently shown in the table (respects filter/search).
+  - **Print**: the page itself.
+
+  PDF and Markdown always cover all spaces, regardless of the table filter.
 
 Tested against oCIS Web **12.5.0** (oCIS 8.x).
 
@@ -44,7 +51,7 @@ GET /vault/graph/v1beta1/drives?...        # only if Vault mode is enabled
 
 ```bash
 npm ci
-npm run build      # -> dist/manifest.json + dist/js/space-report.js
+npm run build      # -> dist/manifest.json + dist/js/space-report.js (single file, ~450 kB / 145 kB gzip incl. jsPDF)
 ```
 
 - Copy `dist/` to `$WEB_ASSET_APPS_PATH/space-report/` and restart `web`. This works the same way as the feature-access extension, e.g. with the same init container / volume.
@@ -67,5 +74,7 @@ npm run check-types
 | File | Purpose |
 |---|---|
 | `src/report.ts` | Normalising, aggregation, formatting, CSV (pure, tested) |
+| `src/export.ts` | Report content model + Markdown |
+| `src/pdf.ts` | PDF layout (jsPDF + autotable) |
 | `src/api.ts` | Graph call |
 | `src/views/ReportView.vue` | The page |
