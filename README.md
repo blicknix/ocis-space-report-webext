@@ -17,11 +17,12 @@ A status report of all spaces for admins, in the oCIS Web UI.
   - largest spaces
   - fullest spaces, measured against their quota
 - **Table** of every space: type, name, owner, used, quota, % full, last modified. It is sortable and searchable.
-- **Exports**, generated in the browser (nothing is stored on the server):
+- **Exports**, generated in the browser:
   - **PDF**: A4 report with overview, key figures, top lists and the full space list, with page numbers. Built with jsPDF using the standard Helvetica font, so characters outside Latin-1 (e.g. Greek, CJK) print as `?`.
   - **Markdown**: the same content as tables, e.g. for a wiki or ticket.
   - **CSV**: the rows currently shown in the table (respects filter/search).
   - **Print**: the page itself.
+  - **Save to my files**: stores the PDF or Markdown report in your personal space, in the folder `Space reports` (configurable, created if missing). File names carry date and time; existing files are never overwritten.
 
   PDF and Markdown always cover all spaces, regardless of the table filter.
 
@@ -45,7 +46,7 @@ GET /vault/graph/v1beta1/drives?...        # only if Vault mode is enabled
 
 - Usage and quota come from `quota.used` and `quota.total` of each space, as reported by oCIS.
 - These are space quotas, not raw bytes on the storage backend. Trash and versions count only as far as oCIS includes them in `quota.used`.
-- Nothing is stored anywhere. Every refresh is a live query.
+- Every refresh is a live query. Nothing is stored unless you use "Save to my files".
 
 ## Deploy
 
@@ -62,6 +63,7 @@ space-report:
   config:
     thresholdPercent: 90   # "almost full" from this fill level
     topN: 10               # entries in the top lists
+    saveFolder: Space reports   # folder in the personal space for "Save to my files" ("" = root)
 ```
 
 ## Development
@@ -76,5 +78,6 @@ npm run check-types
 | `src/report.ts` | Normalising, aggregation, formatting, CSV (pure, tested) |
 | `src/export.ts` | Report content model + Markdown |
 | `src/pdf.ts` | PDF layout (jsPDF + autotable) |
+| `src/save.ts` | Saving into the personal space (WebDAV) |
 | `src/api.ts` | Graph call |
 | `src/views/ReportView.vue` | The page |

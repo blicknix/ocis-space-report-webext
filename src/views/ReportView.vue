@@ -20,6 +20,36 @@
         <oc-button :disabled="!rows.length" @click="downloadMarkdown">
           <oc-icon name="markdown" size="small" />Markdown
         </oc-button>
+        <oc-button
+          id="space-report-save-btn"
+          v-oc-tooltip="personalSpace ? '' : $gettext('You have no personal space to save into')"
+          :disabled="!rows.length || saving || !personalSpace"
+        >
+          <oc-icon :name="saving ? 'loader-4' : 'save'" size="small" />{{ $gettext('Save to my files') }}
+        </oc-button>
+        <oc-drop
+          drop-id="space-report-save-drop"
+          toggle="#space-report-save-btn"
+          mode="click"
+          close-on-click
+          padding-size="small"
+        >
+          <ul class="space-report-menu">
+            <li>
+              <oc-button appearance="raw" @click="saveReport('pdf')">
+                <oc-icon name="file-pdf" size="small" />{{ $gettext('Save as PDF') }}
+              </oc-button>
+            </li>
+            <li>
+              <oc-button appearance="raw" @click="saveReport('md')">
+                <oc-icon name="markdown" size="small" />{{ $gettext('Save as Markdown') }}
+              </oc-button>
+            </li>
+          </ul>
+          <p class="oc-text-small oc-text-muted oc-m-rm oc-mt-xs">
+            {{ $gettext('Folder: %{folder}', { folder: saveFolderLabel }) }}
+          </p>
+        </oc-drop>
         <oc-button :disabled="!rows.length" @click="downloadCsv">
           <oc-icon name="file-download" size="small" />CSV
         </oc-button>
@@ -222,7 +252,9 @@ import {
   useAbility,
   useAuthStore,
   useConfigStore,
+  useClientService,
   useMessages,
+  useSpacesStore,
   useUserStore
 } from '@ownclouders/web-pkg'
 import { useCapabilityStore } from '../compat'
@@ -238,6 +270,7 @@ import {
 } from '../report'
 import { useReportConfig } from '../config'
 import { ReportData, buildMarkdown, downloadBlob, reportFileName } from '../export'
+import { normalizeFolder, saveToSpace, withTime } from '../save'
 
 type SortKey = 'kind' | 'name' | 'owner' | 'used' | 'quota' | 'ratio' | 'lastModified'
 
@@ -248,7 +281,9 @@ const capabilityStore = useCapabilityStore()
 const { can } = useAbility()
 const reportConfig = useReportConfig()
 const userStore = useUserStore()
-const { showErrorMessage } = useMessages()
+const { showMessage, showErrorMessage } = useMessages()
+const clientService = useClientService()
+const spacesStore = useSpacesStore()
 
 const threshold = computed(() => reportConfig.thresholdPercent / 100)
 const thresholdPercent = computed(() => reportConfig.thresholdPercent)
@@ -436,6 +471,45 @@ const downloadMarkdown = () => {
   downloadBlob(blob, reportFileName(data.meta, 'md'))
 }
 
+const personalSpace = computed(() => spacesStore.personalSpace)
+const saveFolderLabel = computed(() => {
+  const folder = normalizeFolder(reportConfig.saveFolder)
+  return `${$gettext('Personal')}/${folder}`.replace(/\/$/, '')
+})
+
+const saving = ref(false)
+const saveReport = async (format: 'pdf' | 'md') => {
+  const space = unref(personalSpace)
+  if (!space) return
+  saving.value = true
+  try {
+    const data = reportData()
+    let content: string | ArrayBuffer
+    if (format === 'pdf') {
+      const { buildPdf } = await import('../pdf')
+      content = await buildPdf(data).arrayBuffer()
+    } else {
+      content = buildMarkdown(data)
+    }
+    const path = await saveToSpace({
+      webdav: clientService.webdav as any,
+      space,
+      folder: reportConfig.saveFolder,
+      fileName: withTime(reportFileName(data.meta, format), new Date()),
+      content
+    })
+    showMessage({
+      title: $gettext('Report saved'),
+      desc: `${$gettext('Personal')}${path}`
+    })
+  } catch (e) {
+    console.error('[space-report] save', e)
+    showErrorMessage({ title: $gettext('Saving the report failed'), errors: [e as Error] })
+  } finally {
+    saving.value = false
+  }
+}
+
 const exporting = ref(false)
 const downloadPdf = async () => {
   exporting.value = true
@@ -496,7 +570,16 @@ const print = () => {
 }
 .space-report-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+.space-report-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.space-report-menu li {
+  padding: 0.25rem 0.25rem;
 }
 .space-report-notice {
   display: flex;
