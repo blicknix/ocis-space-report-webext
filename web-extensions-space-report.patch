@@ -1,5 +1,5 @@
 From f22251af87650363198d78f1fbe50dcb23f94913 Mon Sep 17 00:00:00 2001
-From: Sami <samuel.schumacher@gmail.com>
+From: Samuel Schumacher <schumacher@b1-systems.de>
 Date: Mon, 19 Oct 2026 16:16:35 +0200
 Subject: [PATCH] feat: add space-report extension
 
@@ -7,9 +7,7 @@ Admin status report of personal/project/vault spaces, storage usage,
 quota alerts and orphaned spaces, with PDF/Markdown/CSV export and
 saving the report to the personal space.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01PQHYgWCooN8riiHHTGEEEF
-Signed-off-by: Sami <samuel.schumacher@gmail.com>
+Signed-off-by: Samuel Schumacher <schumacher@b1-systems.de>
 ---
  .github/workflows/test.yml                    |   1 +
  README.md                                     |   1 +
