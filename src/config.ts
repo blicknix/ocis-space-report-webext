@@ -9,7 +9,11 @@ export interface ReportConfig {
   saveFolder: string
 }
 
-const state = reactive<ReportConfig>({ thresholdPercent: 90, topN: 10, saveFolder: 'Space reports' })
+const state = reactive<ReportConfig>({
+  thresholdPercent: 90,
+  topN: 10,
+  saveFolder: 'Space reports'
+})
 
 export function applyReportConfig(raw: Record<string, unknown> | undefined | null) {
   const t = Number(raw?.thresholdPercent)

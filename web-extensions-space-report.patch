@@ -1,0 +1,3212 @@
+From f22251af87650363198d78f1fbe50dcb23f94913 Mon Sep 17 00:00:00 2001
+From: Sami <samuel.schumacher@gmail.com>
+Date: Mon, 19 Oct 2026 16:16:35 +0200
+Subject: [PATCH] feat: add space-report extension
+
+Admin status report of personal/project/vault spaces, storage usage,
+quota alerts and orphaned spaces, with PDF/Markdown/CSV export and
+saving the report to the personal space.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01PQHYgWCooN8riiHHTGEEEF
+Signed-off-by: Sami <samuel.schumacher@gmail.com>
+---
+ .github/workflows/test.yml                    |   1 +
+ README.md                                     |   1 +
+ docker-compose.yml                            |   1 +
+ packages/web-app-space-report/LICENSE         | 202 ++++
+ packages/web-app-space-report/README.md       | 114 +++
+ packages/web-app-space-report/l10n/.tx/config |  10 +
+ .../l10n/translations.json                    |   1 +
+ packages/web-app-space-report/package.json    |  29 +
+ .../web-app-space-report/playwright.config.ts |   7 +
+ .../web-app-space-report/public/manifest.json |   8 +
+ packages/web-app-space-report/src/api.ts      | 102 ++
+ packages/web-app-space-report/src/compat.ts   |  12 +
+ packages/web-app-space-report/src/config.ts   |  26 +
+ .../web-app-space-report/src/constants.ts     |   6 +
+ packages/web-app-space-report/src/env.d.ts    |  11 +
+ packages/web-app-space-report/src/export.ts   | 225 +++++
+ packages/web-app-space-report/src/index.ts    |  76 ++
+ packages/web-app-space-report/src/orphans.ts  | 164 +++
+ packages/web-app-space-report/src/pdf.ts      | 186 ++++
+ packages/web-app-space-report/src/report.ts   | 222 +++++
+ packages/web-app-space-report/src/save.ts     |  75 ++
+ .../src/views/ReportView.vue                  | 939 ++++++++++++++++++
+ .../tests/e2e/spaceReport.spec.ts             |  58 ++
+ .../tests/unit/export.spec.ts                 |  92 ++
+ .../tests/unit/orphans.spec.ts                | 150 +++
+ .../tests/unit/report.spec.ts                 | 120 +++
+ .../tests/unit/save.spec.ts                   |  66 ++
+ packages/web-app-space-report/tsconfig.json   |   6 +
+ packages/web-app-space-report/vite.config.ts  |  40 +
+ 29 files changed, 2950 insertions(+)
+ create mode 100644 packages/web-app-space-report/LICENSE
+ create mode 100644 packages/web-app-space-report/README.md
+ create mode 100644 packages/web-app-space-report/l10n/.tx/config
+ create mode 100644 packages/web-app-space-report/l10n/translations.json
+ create mode 100644 packages/web-app-space-report/package.json
+ create mode 100644 packages/web-app-space-report/playwright.config.ts
+ create mode 100644 packages/web-app-space-report/public/manifest.json
+ create mode 100644 packages/web-app-space-report/src/api.ts
+ create mode 100644 packages/web-app-space-report/src/compat.ts
+ create mode 100644 packages/web-app-space-report/src/config.ts
+ create mode 100644 packages/web-app-space-report/src/constants.ts
+ create mode 100644 packages/web-app-space-report/src/env.d.ts
+ create mode 100644 packages/web-app-space-report/src/export.ts
+ create mode 100644 packages/web-app-space-report/src/index.ts
+ create mode 100644 packages/web-app-space-report/src/orphans.ts
+ create mode 100644 packages/web-app-space-report/src/pdf.ts
+ create mode 100644 packages/web-app-space-report/src/report.ts
+ create mode 100644 packages/web-app-space-report/src/save.ts
+ create mode 100644 packages/web-app-space-report/src/views/ReportView.vue
+ create mode 100644 packages/web-app-space-report/tests/e2e/spaceReport.spec.ts
+ create mode 100644 packages/web-app-space-report/tests/unit/export.spec.ts
+ create mode 100644 packages/web-app-space-report/tests/unit/orphans.spec.ts
+ create mode 100644 packages/web-app-space-report/tests/unit/report.spec.ts
+ create mode 100644 packages/web-app-space-report/tests/unit/save.spec.ts
+ create mode 100644 packages/web-app-space-report/tsconfig.json
+ create mode 100644 packages/web-app-space-report/vite.config.ts
+
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index d081348..f89d4e5 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -108,6 +108,7 @@ jobs:
+           - web-app-ai-smart-collections-nav
+           - web-app-ai-folder-readme-generator
+           - web-app-jupyter
++          - web-app-space-report
+     steps:
+       - name: Checkout code
+         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+diff --git a/README.md b/README.md
+index c7918d3..9cdd0fa 100644
+--- a/README.md
++++ b/README.md
+@@ -26,6 +26,7 @@ Web Extensions are available on [Docker Hub](https://hub.docker.com/r/owncloud/w
+ - [web-app-jupyter](packages/web-app-jupyter/) -- Open .ipynb files in an external JupyterHub instance
+ - [web-app-photo-addon](packages/web-app-photo-addon/) -- Photo enhancement features
+ - [web-app-progress-bars](packages/web-app-progress-bars/) -- Upload/download progress bars
++- [web-app-space-report](packages/web-app-space-report/) -- Admin status report of spaces, storage usage and orphaned spaces (PDF/Markdown/CSV export)
+ - [web-app-unzip](packages/web-app-unzip/) -- ZIP file extraction
+ - [web-app-version-changelog](packages/web-app-version-changelog/) -- AI-generated changelog summaries for file version history
+ - [web-app-vim-nav](packages/web-app-vim-nav/) -- Vim-style keyboard navigation, yank/cut/paste, and location switching for the file list
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 9a8e471..af52367 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -58,6 +58,7 @@ services:
+       - ./packages/web-app-ai-smart-collections-nav/dist:/web/apps/ai-smart-collections-nav
+       - ./packages/web-app-ai-folder-readme-generator/dist:/web/apps/ai-folder-readme-generator
+       - ./packages/web-app-jupyter/dist:/web/apps/jupyter
++      - ./packages/web-app-space-report/dist:/web/apps/space-report
+     depends_on:
+       - traefik
+ 
+diff --git a/packages/web-app-space-report/LICENSE b/packages/web-app-space-report/LICENSE
+new file mode 100644
+index 0000000..470ece7
+--- /dev/null
++++ b/packages/web-app-space-report/LICENSE
+@@ -0,0 +1,202 @@
++
++                                 Apache License
++                           Version 2.0, January 2004
++                        http://www.apache.org/licenses/
++
++   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
++
++   1. Definitions.
++
++      "License" shall mean the terms and conditions for use, reproduction,
++      and distribution as defined by Sections 1 through 9 of this document.
++
++      "Licensor" shall mean the copyright owner or entity authorized by
++      the copyright owner that is granting the License.
++
++      "Legal Entity" shall mean the union of the acting entity and all
++      other entities that control, are controlled by, or are under common
++      control with that entity. For the purposes of this definition,
++      "control" means (i) the power, direct or indirect, to cause the
++      direction or management of such entity, whether by contract or
++      otherwise, or (ii) ownership of fifty percent (50%) or more of the
++      outstanding shares, or (iii) beneficial ownership of such entity.
++
++      "You" (or "Your") shall mean an individual or Legal Entity
++      exercising permissions granted by this License.
++
++      "Source" form shall mean the preferred form for making modifications,
++      including but not limited to software source code, documentation
++      source, and configuration files.
++
++      "Object" form shall mean any form resulting from mechanical
++      transformation or translation of a Source form, including but
++      not limited to compiled object code, generated documentation,
++      and conversions to other media types.
++
++      "Work" shall mean the work of authorship, whether in Source or
++      Object form, made available under the License, as indicated by a
++      copyright notice that is included in or attached to the work
++      (an example is provided in the Appendix below).
++
++      "Derivative Works" shall mean any work, whether in Source or Object
++      form, that is based on (or derived from) the Work and for which the
++      editorial revisions, annotations, elaborations, or other modifications
++      represent, as a whole, an original work of authorship. For the purposes
++      of this License, Derivative Works shall not include works that remain
++      separable from, or merely link (or bind by name) to the interfaces of,
++      the Work and Derivative Works thereof.
++
++      "Contribution" shall mean any work of authorship, including
++      the original version of the Work and any modifications or additions
++      to that Work or Derivative Works thereof, that is intentionally
++      submitted to Licensor for inclusion in the Work by the copyright owner
++      or by an individual or Legal Entity authorized to submit on behalf of
++      the copyright owner. For the purposes of this definition, "submitted"
++      means any form of electronic, verbal, or written communication sent
++      to the Licensor or its representatives, including but not limited to
++      communication on electronic mailing lists, source code control systems,
++      and issue tracking systems that are managed by, or on behalf of, the
++      Licensor for the purpose of discussing and improving the Work, but
++      excluding communication that is conspicuously marked or otherwise
++      designated in writing by the copyright owner as "Not a Contribution."
++
++      "Contributor" shall mean Licensor and any individual or Legal Entity
++      on behalf of whom a Contribution has been received by Licensor and
++      subsequently incorporated within the Work.
++
++   2. Grant of Copyright License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      copyright license to reproduce, prepare Derivative Works of,
++      publicly display, publicly perform, sublicense, and distribute the
++      Work and such Derivative Works in Source or Object form.
++
++   3. Grant of Patent License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      (except as stated in this section) patent license to make, have made,
++      use, offer to sell, sell, import, and otherwise transfer the Work,
++      where such license applies only to those patent claims licensable
++      by such Contributor that are necessarily infringed by their
++      Contribution(s) alone or by combination of their Contribution(s)
++      with the Work to which such Contribution(s) was submitted. If You
++      institute patent litigation against any entity (including a
++      cross-claim or counterclaim in a lawsuit) alleging that the Work
++      or a Contribution incorporated within the Work constitutes direct
++      or contributory patent infringement, then any patent licenses
++      granted to You under this License for that Work shall terminate
++      as of the date such litigation is filed.
++
++   4. Redistribution. You may reproduce and distribute copies of the
++      Work or Derivative Works thereof in any medium, with or without
++      modifications, and in Source or Object form, provided that You
++      meet the following conditions:
++
++      (a) You must give any other recipients of the Work or
++          Derivative Works a copy of this License; and
++
++      (b) You must cause any modified files to carry prominent notices
++          stating that You changed the files; and
++
++      (c) You must retain, in the Source form of any Derivative Works
++          that You distribute, all copyright, patent, trademark, and
++          attribution notices from the Source form of the Work,
++          excluding those notices that do not pertain to any part of
++          the Derivative Works; and
++
++      (d) If the Work includes a "NOTICE" text file as part of its
++          distribution, then any Derivative Works that You distribute must
++          include a readable copy of the attribution notices contained
++          within such NOTICE file, excluding those notices that do not
++          pertain to any part of the Derivative Works, in at least one
++          of the following places: within a NOTICE text file distributed
++          as part of the Derivative Works; within the Source form or
++          documentation, if provided along with the Derivative Works; or,
++          within a display generated by the Derivative Works, if and
++          wherever such third-party notices normally appear. The contents
++          of the NOTICE file are for informational purposes only and
++          do not modify the License. You may add Your own attribution
++          notices within Derivative Works that You distribute, alongside
++          or as an addendum to the NOTICE text from the Work, provided
++          that such additional attribution notices cannot be construed
++          as modifying the License.
++
++      You may add Your own copyright statement to Your modifications and
++      may provide additional or different license terms and conditions
++      for use, reproduction, or distribution of Your modifications, or
++      for any such Derivative Works as a whole, provided Your use,
++      reproduction, and distribution of the Work otherwise complies with
++      the conditions stated in this License.
++
++   5. Submission of Contributions. Unless You explicitly state otherwise,
++      any Contribution intentionally submitted for inclusion in the Work
++      by You to the Licensor shall be under the terms and conditions of
++      this License, without any additional terms or conditions.
++      Notwithstanding the above, nothing herein shall supersede or modify
++      the terms of any separate license agreement you may have executed
++      with Licensor regarding such Contributions.
++
++   6. Trademarks. This License does not grant permission to use the trade
++      names, trademarks, service marks, or product names of the Licensor,
++      except as required for reasonable and customary use in describing the
++      origin of the Work and reproducing the content of the NOTICE file.
++
++   7. Disclaimer of Warranty. Unless required by applicable law or
++      agreed to in writing, Licensor provides the Work (and each
++      Contributor provides its Contributions) on an "AS IS" BASIS,
++      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++      implied, including, without limitation, any warranties or conditions
++      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
++      PARTICULAR PURPOSE. You are solely responsible for determining the
++      appropriateness of using or redistributing the Work and assume any
++      risks associated with Your exercise of permissions under this License.
++
++   8. Limitation of Liability. In no event and under no legal theory,
++      whether in tort (including negligence), contract, or otherwise,
++      unless required by applicable law (such as deliberate and grossly
++      negligent acts) or agreed to in writing, shall any Contributor be
++      liable to You for damages, including any direct, indirect, special,
++      incidental, or consequential damages of any character arising as a
++      result of this License or out of the use or inability to use the
++      Work (including but not limited to damages for loss of goodwill,
++      work stoppage, computer failure or malfunction, or any and all
++      other commercial damages or losses), even if such Contributor
++      has been advised of the possibility of such damages.
++
++   9. Accepting Warranty or Additional Liability. While redistributing
++      the Work or Derivative Works thereof, You may choose to offer,
++      and charge a fee for, acceptance of support, warranty, indemnity,
++      or other liability obligations and/or rights consistent with this
++      License. However, in accepting such obligations, You may act only
++      on Your own behalf and on Your sole responsibility, not on behalf
++      of any other Contributor, and only if You agree to indemnify,
++      defend, and hold each Contributor harmless for any liability
++      incurred by, or claims asserted against, such Contributor by reason
++      of your accepting any such warranty or additional liability.
++
++   END OF TERMS AND CONDITIONS
++
++   APPENDIX: How to apply the Apache License to your work.
++
++      To apply the Apache License to your work, attach the following
++      boilerplate notice, with the fields enclosed by brackets "[]"
++      replaced with your own identifying information. (Don't include
++      the brackets!)  The text should be enclosed in the appropriate
++      comment syntax for the file format. We also recommend that a
++      file or class name and description of purpose be included on the
++      same "printed page" as the copyright notice for easier
++      identification within third-party archives.
++
++   Copyright 2023 ownCloud GmbH
++   
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
+diff --git a/packages/web-app-space-report/README.md b/packages/web-app-space-report/README.md
+new file mode 100644
+index 0000000..8a5ad00
+--- /dev/null
++++ b/packages/web-app-space-report/README.md
+@@ -0,0 +1,114 @@
++# Space Report
++
++A status report of all spaces for admins, in the oCIS Web UI.
++
++- **Counts**
++  - personal spaces
++  - project spaces, including how many are disabled
++  - Vault spaces, if Vault mode is on
++- **Storage**
++  - total used and total quota assigned
++  - spaces without a quota (unlimited)
++  - average and median usage per personal space
++- **Alerts**
++  - spaces at or above a fill threshold (default 90 %)
++  - spaces at or over their quota
++- **Orphaned spaces** (Admin role only), with the storage they hold:
++  - personal spaces whose owner no longer exists in the user backend (e.g. deleted in LDAP/Keycloak)
++  - project spaces without any member
++  - project spaces whose members are all deleted users, deleted groups or empty groups
++  - also listed, but not counted as orphaned: projects without a manager, personal spaces of disabled accounts
++- **Top lists**
++  - largest spaces
++  - fullest spaces, measured against their quota
++- **Table** of every space: type, name, owner, used, quota, % full, last modified. It is sortable and searchable.
++- **Exports**, generated in the browser:
++  - **PDF**: A4 report with overview, key figures, top lists and the full space list, with page numbers. Built with jsPDF using the standard Helvetica font, so characters outside Latin-1 (e.g. Greek, CJK) print as `?`.
++  - **Markdown**: the same content as tables, e.g. for a wiki or ticket.
++  - **CSV**: the rows currently shown in the table (respects filter/search).
++  - **Print**: the page itself.
++  - **Save to my files**: stores the PDF or Markdown report in your personal space, in the folder `Space reports` (configurable, created if missing). File names carry date and time; existing files are never overwritten.
++
++  PDF and Markdown always cover all spaces, regardless of the table filter.
++
++Tested against oCIS Web **12.5.0** (oCIS 8.x).
++
++## Access
++
++- **Who sees it:** users with the `Drives.List.all` permission. It appears in the app switcher as **Space report**.
++- **Personal spaces of other users:** oCIS only lists them for accounts with full user-management permission, i.e. the Admin role. For other roles, the page shows a hint that the numbers are incomplete.
++- **MFA:** if MFA is enabled, opening the page requires it, the same as Admin Settings. That MFA-level session is also what makes Vault spaces listable. Without it, Vault is skipped with a note.
++
++## Data source
++
++The page makes read-only calls to the "all drives" Graph endpoint, the same one Admin Settings uses:
++
++```
++GET /graph/v1beta1/drives?$filter=driveType eq personal
++GET /graph/v1beta1/drives?$filter=driveType eq project
++GET /vault/graph/v1beta1/drives?...        # only if Vault mode is enabled
++```
++
++- The orphan check additionally reads `GET /graph/v1.0/users` and `GET /graph/v1.0/groups?$expand=members`. oCIS reads these without paging, so an LDAP size limit can cut the lists short. Every owner or member missing from a list is therefore confirmed with a direct lookup (`/users/{id}`, `/groups/{id}`). Only a 404 counts as "gone"; lookup errors are reported as "not verified" and never counted as orphaned. At most 500 lookups per run (8 in parallel).
++- Usage and quota come from `quota.used` and `quota.total` of each space, as reported by oCIS.
++- These are space quotas, not raw bytes on the storage backend. Trash and versions count only as far as oCIS includes them in `quota.used`.
++- Every refresh is a live query. Nothing is stored unless you use "Save to my files".
++
++## Configuration
++
++Optional, in `apps.yaml` (key = app folder name, `space-report`):
++
++```yaml
++space-report:
++  config:
++    thresholdPercent: 90 # "almost full" from this fill level
++    topN: 10 # entries in the top lists
++    saveFolder: Space reports # folder in the personal space for "Save to my files" ("" = root)
++```
++
++No CSP changes are needed: the extension only calls oCIS itself.
++
++## Deployment
++
++- **Docker / ocis_full:** use the image `owncloud/web-extensions:space-report-<version>` like the other extensions.
++- **Kubernetes (oCIS Helm chart):** copy the app into the web pod's `apps` volume with an init container:
++
++```yaml
++services:
++  web:
++    config:
++      externalApps:
++        space-report:
++          config:
++            thresholdPercent: 90
++    additionalInitContainers:
++      - name: space-report
++        image: owncloud/web-extensions:space-report-0.1.0
++        command: ['cp', '-R', '/var/lib/nginx/html/space-report/', '/apps']
++        volumeMounts:
++          - name: apps
++            mountPath: /apps
++```
++
++## Development
++
++```bash
++pnpm install
++pnpm --filter space-report build:w      # watch build
++docker compose up -d                     # repo root; https://host.docker.internal:9200, admin/admin
++pnpm --filter space-report test:unit
++pnpm --filter space-report test:e2e
++pnpm --filter space-report check:types
++```
++
++To get a real orphan locally, delete a user directly in oCIS' built-in LDAP (IDM) rather than in Admin Settings, because deleting through oCIS also removes the personal space.
++
++| File                       | Purpose                                        |
++| -------------------------- | ---------------------------------------------- |
++| `src/report.ts`            | Normalising, aggregation, formatting, CSV      |
++| `src/orphans.ts`           | Orphan analysis                                |
++| `src/export.ts`            | Report content model + Markdown                |
++| `src/pdf.ts`               | PDF layout (jsPDF + jspdf-autotable, both MIT) |
++| `src/save.ts`              | Saving into the personal space (WebDAV)        |
++| `src/api.ts`               | Graph calls                                    |
++| `src/views/ReportView.vue` | The page                                       |
+diff --git a/packages/web-app-space-report/l10n/.tx/config b/packages/web-app-space-report/l10n/.tx/config
+new file mode 100644
+index 0000000..c1abc55
+--- /dev/null
++++ b/packages/web-app-space-report/l10n/.tx/config
+@@ -0,0 +1,10 @@
++[main]
++host = https://www.transifex.com
++
++[o:owncloud-org:p:owncloud-web:r:web-extensions-space-report]
++file_filter = locale/<lang>/app.po
++minimum_perc = 0
++resource_name = web-extensions-space-report
++source_file = template.pot
++source_lang = en
++type = PO
+diff --git a/packages/web-app-space-report/l10n/translations.json b/packages/web-app-space-report/l10n/translations.json
+new file mode 100644
+index 0000000..0967ef4
+--- /dev/null
++++ b/packages/web-app-space-report/l10n/translations.json
+@@ -0,0 +1 @@
++{}
+diff --git a/packages/web-app-space-report/package.json b/packages/web-app-space-report/package.json
+new file mode 100644
+index 0000000..9cc3851
+--- /dev/null
++++ b/packages/web-app-space-report/package.json
+@@ -0,0 +1,29 @@
++{
++  "name": "space-report",
++  "version": "0.1.0",
++  "private": true,
++  "description": "Admin status report of spaces, storage usage and orphaned spaces for ownCloud Web",
++  "license": "Apache-2.0",
++  "author": "ownCloud GmbH",
++  "type": "module",
++  "scripts": {
++    "build": "pnpm vite build",
++    "build:w": "pnpm vite build --watch --mode development",
++    "check:types": "vue-tsc --noEmit",
++    "test:unit": "NODE_OPTIONS=--unhandled-rejections=throw vitest run",
++    "test:e2e": "pnpm playwright test"
++  },
++  "dependencies": {
++    "@ownclouders/web-client": "^12.5.0",
++    "@ownclouders/web-pkg": "^12.5.0",
++    "jspdf": "^3.0.4",
++    "jspdf-autotable": "^5.0.8"
++  },
++  "devDependencies": {
++    "@ownclouders/extension-sdk": "^12.5.0",
++    "@ownclouders/web-test-helpers": "^12.5.0",
++    "vue": "^3.5.44",
++    "vue-router": "^5.4.0",
++    "vue3-gettext": "^2.4.0"
++  }
++}
+diff --git a/packages/web-app-space-report/playwright.config.ts b/packages/web-app-space-report/playwright.config.ts
+new file mode 100644
+index 0000000..2bd6c6a
+--- /dev/null
++++ b/packages/web-app-space-report/playwright.config.ts
+@@ -0,0 +1,7 @@
++import { defineConfig } from '@playwright/test'
++import baseConfig from '../../playwright.config'
++
++export default defineConfig({
++  ...baseConfig,
++  testDir: './tests/e2e'
++})
+diff --git a/packages/web-app-space-report/public/manifest.json b/packages/web-app-space-report/public/manifest.json
+new file mode 100644
+index 0000000..2ebc18d
+--- /dev/null
++++ b/packages/web-app-space-report/public/manifest.json
+@@ -0,0 +1,8 @@
++{
++  "entrypoint": "space-report.js",
++  "config": {
++    "thresholdPercent": 90,
++    "topN": 10,
++    "saveFolder": "Space reports"
++  }
++}
+diff --git a/packages/web-app-space-report/src/api.ts b/packages/web-app-space-report/src/api.ts
+new file mode 100644
+index 0000000..b5d616d
+--- /dev/null
++++ b/packages/web-app-space-report/src/api.ts
+@@ -0,0 +1,102 @@
++import { GraphDrive } from './report'
++
++export type VaultStatus = 'ok' | 'disabled' | 'mfa-required' | 'error'
++
++export class GraphError extends Error {
++  constructor(
++    public readonly status: number,
++    message: string,
++    public readonly mfaRequired = false
++  ) {
++    super(message)
++    this.name = 'GraphError'
++  }
++}
++
++/**
++ * Lists all spaces of one type via /graph/v1beta1/drives (the "all drives" endpoint Admin Settings
++ * uses). Vault spaces live behind the /vault prefix and need an MFA-level token.
++ */
++export async function fetchDrives({
++  serverUrl,
++  accessToken,
++  driveType,
++  vault = false,
++  signal
++}: {
++  serverUrl: string
++  accessToken: string
++  driveType: 'personal' | 'project'
++  vault?: boolean
++  signal?: AbortSignal
++}): Promise<GraphDrive[]> {
++  const base = serverUrl.replace(/\/+$/, '') + (vault ? '/vault' : '')
++  const query = new URLSearchParams({ $filter: `driveType eq ${driveType}`, $orderby: 'name asc' })
++  const res = await fetch(`${base}/graph/v1beta1/drives?${query}`, {
++    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
++    credentials: 'omit',
++    signal
++  })
++  if (!res.ok) {
++    const mfa = res.headers.has('x-ocis-mfa-required')
++    throw new GraphError(
++      res.status,
++      `Listing ${vault ? 'vault ' : ''}${driveType} spaces failed: HTTP ${res.status}`,
++      mfa
++    )
++  }
++  const body = await res.json().catch(() => null)
++  // oCIS answers `null` when there are no spaces at all
++  return Array.isArray(body?.value) ? body.value : []
++}
++
++// ---- directory (users / groups), for the orphan analysis -------------------------------------
++
++function graphGet(serverUrl: string, accessToken: string, path: string, signal?: AbortSignal) {
++  return fetch(`${serverUrl.replace(/\/+$/, '')}/graph/v1.0/${path}`, {
++    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
++    credentials: 'omit',
++    signal
++  })
++}
++
++export async function fetchUsers(serverUrl: string, accessToken: string, signal?: AbortSignal) {
++  const res = await graphGet(serverUrl, accessToken, 'users', signal)
++  if (!res.ok) throw new GraphError(res.status, `Listing users failed: HTTP ${res.status}`)
++  const body = await res.json().catch(() => null)
++  const value: Array<{ id?: string; accountEnabled?: boolean }> = Array.isArray(body?.value)
++    ? body.value
++    : []
++  return value
++    .filter((u) => typeof u.id === 'string' && u.id)
++    .map((u) => ({ id: u.id as string, accountEnabled: u.accountEnabled }))
++}
++
++export async function fetchGroups(serverUrl: string, accessToken: string, signal?: AbortSignal) {
++  const res = await graphGet(serverUrl, accessToken, 'groups?$expand=members', signal)
++  if (!res.ok) throw new GraphError(res.status, `Listing groups failed: HTTP ${res.status}`)
++  const body = await res.json().catch(() => null)
++  const value: Array<{ id?: string; members?: unknown[] }> = Array.isArray(body?.value)
++    ? body.value
++    : []
++  return value
++    .filter((g) => typeof g.id === 'string' && g.id)
++    .map((g) => ({
++      id: g.id as string,
++      memberCount: Array.isArray(g.members) ? g.members.length : undefined
++    }))
++}
++
++/** true/false for exists/404; throws on anything else so the caller can mark it unverified */
++export async function exists(
++  serverUrl: string,
++  accessToken: string,
++  kind: 'users' | 'groups',
++  id: string,
++  signal?: AbortSignal
++): Promise<boolean> {
++  const res = await graphGet(serverUrl, accessToken, `${kind}/${encodeURIComponent(id)}`, signal)
++  if (res.ok) return true
++  if (res.status === 404) return false
++  throw new GraphError(res.status, `Looking up ${kind} ${id} failed: HTTP ${res.status}`)
++}
+diff --git a/packages/web-app-space-report/src/compat.ts b/packages/web-app-space-report/src/compat.ts
+new file mode 100644
+index 0000000..baf9d99
+--- /dev/null
++++ b/packages/web-app-space-report/src/compat.ts
+@@ -0,0 +1,12 @@
++// @ownclouders/web-pkg 12.5.0 on npm ships without the .d.ts for piniaStores/capabilities,
++// although the store is exported at runtime. Typed shim for the parts we use.
++import * as webPkg from '@ownclouders/web-pkg'
++
++export interface CapabilityStoreSubset {
++  vaultEnabled: boolean
++  authMfaEnabled: boolean
++  authMfaRequiredLevelname: string
++}
++
++export const useCapabilityStore = (): CapabilityStoreSubset =>
++  (webPkg as unknown as { useCapabilityStore: () => CapabilityStoreSubset }).useCapabilityStore()
+diff --git a/packages/web-app-space-report/src/config.ts b/packages/web-app-space-report/src/config.ts
+new file mode 100644
+index 0000000..7248ebf
+--- /dev/null
++++ b/packages/web-app-space-report/src/config.ts
+@@ -0,0 +1,26 @@
++import { reactive } from 'vue'
++
++export interface ReportConfig {
++  /** a space counts as "almost full" from this percentage of its quota */
++  thresholdPercent: number
++  /** entries in the "largest" / "fullest" lists */
++  topN: number
++  /** folder in the personal space for "Save to my files" */
++  saveFolder: string
++}
++
++const state = reactive<ReportConfig>({
++  thresholdPercent: 90,
++  topN: 10,
++  saveFolder: 'Space reports'
++})
++
++export function applyReportConfig(raw: Record<string, unknown> | undefined | null) {
++  const t = Number(raw?.thresholdPercent)
++  const n = Number(raw?.topN)
++  if (Number.isFinite(t) && t > 0 && t <= 100) state.thresholdPercent = t
++  if (Number.isInteger(n) && n > 0 && n <= 100) state.topN = n
++  if (typeof raw?.saveFolder === 'string') state.saveFolder = raw.saveFolder
++}
++
++export const useReportConfig = () => state
+diff --git a/packages/web-app-space-report/src/constants.ts b/packages/web-app-space-report/src/constants.ts
+new file mode 100644
+index 0000000..cd38ee1
+--- /dev/null
++++ b/packages/web-app-space-report/src/constants.ts
+@@ -0,0 +1,6 @@
++import type { Ability } from '@ownclouders/web-client'
++
++export const APP_ID = 'space-report'
++
++/** Listing all spaces needs Drives.List.all (Admin and Space Admin roles). */
++export const canView = (ability: Ability) => ability.can('read-all', 'Drive')
+diff --git a/packages/web-app-space-report/src/env.d.ts b/packages/web-app-space-report/src/env.d.ts
+new file mode 100644
+index 0000000..77d2fe5
+--- /dev/null
++++ b/packages/web-app-space-report/src/env.d.ts
+@@ -0,0 +1,11 @@
++/// <reference types="vite/client" />
++
++interface ImportMetaEnv {
++  readonly DEV: boolean
++  readonly PROD: boolean
++  readonly MODE: string
++}
++
++interface ImportMeta {
++  readonly env: ImportMetaEnv
++}
+diff --git a/packages/web-app-space-report/src/export.ts b/packages/web-app-space-report/src/export.ts
+new file mode 100644
+index 0000000..0d873d0
+--- /dev/null
++++ b/packages/web-app-space-report/src/export.ts
+@@ -0,0 +1,225 @@
++// Report documents (Markdown, PDF) built from the same data the page shows.
++import { SpaceKind, SpaceRow, Summary, formatBytes, formatPercent } from './report'
++import { ORPHAN_LABEL, summarizeOrphans } from './orphans'
++
++export interface ReportMeta {
++  server: string
++  generatedAt: Date
++  generatedBy: string
++  thresholdPercent: number
++  vault: 'ok' | 'disabled' | 'mfa-required' | 'error'
++  /** false: other users' personal spaces were not visible to the caller */
++  complete: boolean
++  /** state of the orphan analysis; only 'ok' produces numbers */
++  orphans?: 'ok' | 'skipped' | 'error' | 'pending' | 'running'
++  /** users/groups that could not be verified */
++  orphansUnverified?: number
++}
++
++export interface ReportData {
++  meta: ReportMeta
++  summary: Summary
++  rows: SpaceRow[]
++}
++
++const KIND_LABEL: Record<SpaceKind, string> = {
++  personal: 'Personal',
++  project: 'Project',
++  'vault-personal': 'Vault personal',
++  'vault-project': 'Vault project'
++}
++
++export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
++export const dateTime = (d: Date) => `${isoDate(d)} ${d.toTimeString().slice(0, 5)}`
++const shortDate = (s: string | null) => (s ? isoDate(new Date(s)) : '-')
++
++export const reportFileName = (meta: ReportMeta, ext: 'md' | 'pdf') =>
++  `space-report-${meta.server.replace(/[^\w.-]+/g, '_')}-${isoDate(meta.generatedAt)}.${ext}`
++
++/** Shared content model so Markdown and PDF always say the same thing. */
++export function sections({ meta, summary, rows }: ReportData) {
++  const { byKind, total } = summary
++  const personalUsed = rows
++    .filter((r) => r.kind === 'personal')
++    .map((r) => r.used)
++    .sort((a, b) => a - b)
++  const avg = personalUsed.length
++    ? personalUsed.reduce((a, b) => a + b, 0) / personalUsed.length
++    : 0
++  const mid = Math.floor(personalUsed.length / 2)
++  const median = !personalUsed.length
++    ? 0
++    : personalUsed.length % 2
++      ? personalUsed[mid]
++      : (personalUsed[mid - 1] + personalUsed[mid]) / 2
++
++  const notes: string[] = []
++  if (!meta.complete) {
++    notes.push(
++      "Other users' personal spaces were not visible to the generating account; personal numbers are incomplete."
++    )
++  }
++  if (meta.vault === 'mfa-required')
++    notes.push('Vault spaces are not included (listing them requires an MFA session).')
++  if (meta.vault === 'error') notes.push('Vault spaces could not be loaded and are not included.')
++  notes.push('"Used" is the usage oCIS reports against each space quota, not raw backend storage.')
++
++  const overview: [string, string, string, string][] = [
++    ['Type', 'Spaces', 'Used', 'Quota assigned'],
++    ...(['personal', 'project', 'vault-personal', 'vault-project'] as SpaceKind[])
++      .filter((k) => k === 'personal' || k === 'project' || meta.vault === 'ok')
++      .map((k): [string, string, string, string] => [
++        KIND_LABEL[k] + (byKind[k].disabled ? ` (${byKind[k].disabled} disabled)` : ''),
++        String(byKind[k].count),
++        formatBytes(byKind[k].used),
++        formatBytes(byKind[k].quotaAssigned) +
++          (byKind[k].unlimited ? ` (+${byKind[k].unlimited} unlimited)` : '')
++      ]),
++    ['Total', String(total.count), formatBytes(total.used), formatBytes(total.quotaAssigned)]
++  ]
++
++  const keyFigures: [string, string][] = [
++    [`Spaces >= ${meta.thresholdPercent} % full`, String(total.overThreshold)],
++    ['Spaces at or over quota', String(total.exceeded)],
++    ['Spaces without quota', String(total.unlimited)],
++    ['Average per personal space', formatBytes(avg)],
++    ['Median per personal space', formatBytes(median)]
++  ]
++
++  const orphanCheck = meta.orphans === 'ok'
++  const o = summarizeOrphans(rows)
++  if (orphanCheck) {
++    keyFigures.push(
++      ['Orphaned spaces', String(o.total)],
++      ['Storage in orphaned spaces', formatBytes(o.used)],
++      ['- personal, owner no longer exists', String(o.personalOwnerMissing)],
++      ['- project, no members', String(o.projectNoMembers)],
++      ['- project, all members deleted/empty', String(o.projectMembersGone)],
++      ['Projects without manager', String(o.noManager)],
++      ['Personal spaces of disabled accounts', String(o.ownerDisabled)]
++    )
++    if (meta.orphansUnverified) {
++      notes.push(
++        `${meta.orphansUnverified} users/groups could not be verified; spaces depending on them are not counted as orphaned.`
++      )
++    }
++  } else {
++    notes.push(
++      meta.orphans === 'skipped'
++        ? 'Orphaned spaces were not checked (requires the Admin role).'
++        : 'Orphaned spaces could not be checked.'
++    )
++  }
++  const orphans = rows
++    .filter((r) => r.orphan)
++    .sort((a, b) => b.used - a.used)
++    .map((r) => [
++      KIND_LABEL[r.kind],
++      r.name + (r.disabled ? ' (disabled)' : ''),
++      ORPHAN_LABEL[r.orphan!],
++      formatBytes(r.used),
++      shortDate(r.lastModified)
++    ])
++
++  const largest = summary.largest.map((r, i) => [
++    String(i + 1),
++    r.name,
++    KIND_LABEL[r.kind],
++    formatBytes(r.used)
++  ])
++  const fullest = summary.fullest.map((r, i) => [
++    String(i + 1),
++    r.name,
++    KIND_LABEL[r.kind],
++    formatPercent(r.ratio),
++    `${formatBytes(r.used)} / ${formatBytes(r.quota)}`
++  ])
++  const all = [...rows]
++    .sort((a, b) => b.used - a.used)
++    .map((r) => [
++      KIND_LABEL[r.kind],
++      r.name +
++        (r.disabled ? ' (disabled)' : '') +
++        (r.orphan ? ' [orphaned]' : r.noManager ? ' [no manager]' : ''),
++      r.owner,
++      formatBytes(r.used),
++      r.quota ? formatBytes(r.quota) : 'unlimited',
++      formatPercent(r.ratio),
++      shortDate(r.lastModified)
++    ])
++
++  return { notes, overview, keyFigures, largest, fullest, all, orphanCheck, orphans }
++}
++
++// ---- Markdown -----------------------------------------------------------------------------
++
++const mdCell = (s: string) => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
++
++function mdTable(header: string[], rows: string[][], rightAlign: number[] = []) {
++  const align = header.map((_, i) => (rightAlign.includes(i) ? '---:' : '---'))
++  return [
++    `| ${header.map(mdCell).join(' | ')} |`,
++    `| ${align.join(' | ')} |`,
++    ...rows.map((r) => `| ${r.map(mdCell).join(' | ')} |`)
++  ].join('\n')
++}
++
++export function buildMarkdown(data: ReportData): string {
++  const { meta } = data
++  const s = sections(data)
++  const [ovHeader, ...ovRows] = s.overview
++  const out: string[] = [
++    `# Space report – ${meta.server}`,
++    '',
++    `Generated ${dateTime(meta.generatedAt)} by ${meta.generatedBy || 'unknown'}`,
++    '',
++    ...s.notes.map((n) => `> ${n}`),
++    '',
++    '## Overview',
++    '',
++    mdTable(ovHeader, ovRows, [1, 2, 3]),
++    '',
++    mdTable(['Key figure', 'Value'], s.keyFigures, [1]),
++    '',
++    `## Largest spaces`,
++    '',
++    s.largest.length ? mdTable(['#', 'Space', 'Type', 'Used'], s.largest, [0, 3]) : '_No data_',
++    '',
++    `## Fullest spaces (by quota)`,
++    '',
++    s.fullest.length
++      ? mdTable(['#', 'Space', 'Type', 'Full', 'Used / Quota'], s.fullest, [0, 3, 4])
++      : '_No spaces with a quota_',
++    '',
++    ...(s.orphanCheck
++      ? [
++          `## Orphaned spaces (${s.orphans.length})`,
++          '',
++          s.orphans.length
++            ? mdTable(['Type', 'Space', 'Reason', 'Used', 'Last modified'], s.orphans, [3, 4])
++            : '_No orphaned spaces found._',
++          ''
++        ]
++      : []),
++    `## All spaces (${s.all.length})`,
++    '',
++    mdTable(
++      ['Type', 'Name', 'Owner', 'Used', 'Quota', 'Full', 'Last modified'],
++      s.all,
++      [3, 4, 5, 6]
++    ),
++    ''
++  ]
++  return out.join('\n')
++}
++
++export function downloadBlob(blob: Blob, fileName: string) {
++  const url = URL.createObjectURL(blob)
++  const a = document.createElement('a')
++  a.href = url
++  a.download = fileName
++  document.body.appendChild(a)
++  a.click()
++  a.remove()
++  setTimeout(() => URL.revokeObjectURL(url), 1000)
++}
+diff --git a/packages/web-app-space-report/src/index.ts b/packages/web-app-space-report/src/index.ts
+new file mode 100644
+index 0000000..9344be6
+--- /dev/null
++++ b/packages/web-app-space-report/src/index.ts
+@@ -0,0 +1,76 @@
++import { computed } from 'vue'
++import type { RouteRecordRaw } from 'vue-router'
++import { useGettext } from 'vue3-gettext'
++import { Ability } from '@ownclouders/web-client'
++import {
++  AppMenuItemExtension,
++  ApplicationInformation,
++  defineWebApplication,
++  useAbility,
++  useAuthService,
++  useUserStore
++} from '@ownclouders/web-pkg'
++import ReportView from './views/ReportView.vue'
++import { useCapabilityStore } from './compat'
++import { applyReportConfig } from './config'
++import { APP_ID, canView } from './constants'
++import translations from '../l10n/translations.json'
++
++// NOTE: only a default export here — Web loads the AMD bundle and uses the module value itself.
++
++export default defineWebApplication({
++  setup({ applicationConfig }) {
++    const { $gettext } = useGettext()
++    const ability = useAbility()
++    const userStore = useUserStore()
++    applyReportConfig(applicationConfig)
++
++    const appInfo: ApplicationInformation = {
++      name: $gettext('Space report'),
++      id: APP_ID,
++      icon: 'pie-chart-2',
++      color: '#2b2b2b'
++    }
++
++    // globalProperties carry $ability (CASL)
++    const routes = ({ $ability }: any): RouteRecordRaw[] => [
++      {
++        path: '/',
++        name: 'report',
++        component: ReportView,
++        beforeEnter: async (to) => {
++          if (!canView($ability as Ability)) {
++            return { name: 'accessDenied' }
++          }
++          // same as Admin Settings; also gives the token the ACR needed to list Vault spaces
++          const capabilityStore = useCapabilityStore()
++          if (capabilityStore.authMfaEnabled) {
++            await useAuthService().requireAcr(capabilityStore.authMfaRequiredLevelname, to.fullPath)
++          }
++          return true
++        },
++        meta: {
++          authContext: 'user',
++          title: $gettext('Space report')
++        }
++      }
++    ]
++
++    const menuItems = computed<AppMenuItemExtension[]>(() => {
++      if (!userStore.user || !canView(ability)) return []
++      return [
++        {
++          id: `app.${APP_ID}.menuItem`,
++          type: 'appMenuItem',
++          label: () => appInfo.name,
++          color: appInfo.color,
++          icon: appInfo.icon,
++          priority: 46,
++          path: APP_ID
++        }
++      ]
++    })
++
++    return { appInfo, routes, translations, extensions: menuItems }
++  }
++})
+diff --git a/packages/web-app-space-report/src/orphans.ts b/packages/web-app-space-report/src/orphans.ts
+new file mode 100644
+index 0000000..8906ea3
+--- /dev/null
++++ b/packages/web-app-space-report/src/orphans.ts
+@@ -0,0 +1,164 @@
++// Orphaned spaces:
++//  - personal space whose owner no longer exists in the user backend      -> 'owner-missing'
++//  - project space without any member                                       -> 'no-members'
++//  - project space whose members all point to deleted users/groups
++//    or to groups without members                                           -> 'members-gone'
++// Extra flags (not orphaned, but worth a look):
++//  - ownerDisabled: personal space of a disabled account
++//  - noManager:     project space with live members but no live manager
++import { OrphanReason, SpaceRow } from './report'
++
++export interface DirectoryUser {
++  id: string
++  accountEnabled?: boolean
++}
++
++export interface DirectoryGroup {
++  id: string
++  /** undefined: member list unknown (not expanded) */
++  memberCount?: number
++}
++
++export interface Lookups {
++  /** single lookup by id; resolves false only on 404 */
++  userExists(id: string): Promise<boolean>
++  groupExists(id: string): Promise<boolean>
++}
++
++export interface OrphanResult {
++  rows: SpaceRow[]
++  /** ids that could not be verified (lookup error or limit reached) — never counted as orphaned */
++  unverified: number
++}
++
++export interface OrphanSummary {
++  personalOwnerMissing: number
++  projectNoMembers: number
++  projectMembersGone: number
++  total: number
++  /** storage held by orphaned spaces */
++  used: number
++  ownerDisabled: number
++  noManager: number
++}
++
++/** Runs fn over items with limited concurrency. */
++async function pool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
++  let i = 0
++  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
++    while (i < items.length) await fn(items[i++])
++  })
++  await Promise.all(workers)
++}
++
++/**
++ * The directory listings are only a first pass: oCIS reads users/groups without paging, so an
++ * LDAP size limit can truncate them. Every id missing from a listing is confirmed with a direct
++ * lookup before a space is reported as orphaned.
++ */
++export async function analyzeOrphans({
++  rows,
++  users,
++  groups,
++  lookups,
++  maxLookups = 500,
++  concurrency = 8
++}: {
++  rows: SpaceRow[]
++  users: DirectoryUser[]
++  groups: DirectoryGroup[] | null
++  lookups: Lookups
++  maxLookups?: number
++  concurrency?: number
++}): Promise<OrphanResult> {
++  const userById = new Map(users.map((u) => [u.id, u]))
++  const groupById = new Map((groups || []).map((g) => [g.id, g]))
++
++  // ids not in the listings, to be confirmed one by one
++  const unknownUsers = new Set<string>()
++  const unknownGroups = new Set<string>()
++  for (const r of rows) {
++    if (r.kind.endsWith('personal')) {
++      if (r.ownerId && !userById.has(r.ownerId)) unknownUsers.add(r.ownerId)
++    } else {
++      for (const m of r.members) {
++        if (m.type === 'user' && !userById.has(m.id)) unknownUsers.add(m.id)
++        if (m.type === 'group' && groups && !groupById.has(m.id)) unknownGroups.add(m.id)
++      }
++    }
++  }
++
++  // id -> true (exists) | false (gone) | undefined (not verified)
++  const userState = new Map<string, boolean | undefined>()
++  const groupState = new Map<string, boolean | undefined>()
++  const jobs: Array<() => Promise<void>> = [
++    ...[...unknownUsers].map((id) => async () => {
++      userState.set(id, await lookups.userExists(id).catch(() => undefined))
++    }),
++    ...[...unknownGroups].map((id) => async () => {
++      groupState.set(id, await lookups.groupExists(id).catch(() => undefined))
++    })
++  ]
++  await pool(jobs.slice(0, maxLookups), concurrency, (job) => job())
++  const unverified =
++    Math.max(0, jobs.length - maxLookups) +
++    [...userState.values(), ...groupState.values()].filter((v) => v === undefined).length
++
++  const userAlive = (id: string): boolean | undefined =>
++    userById.has(id) ? true : userState.get(id)
++  const groupAlive = (id: string): boolean | undefined => {
++    if (!groups) return undefined // group listing not available: can't judge
++    const g = groupById.get(id)
++    if (g) return g.memberCount === undefined ? true : g.memberCount > 0
++    return groupState.get(id) // exists-but-unlisted counts as alive (member count unknown)
++  }
++
++  const out = rows.map((r): SpaceRow => {
++    const row: SpaceRow = { ...r, orphan: null, ownerDisabled: false, noManager: false }
++    if (r.kind.endsWith('personal')) {
++      if (!r.ownerId) {
++        row.orphan = 'owner-missing'
++      } else {
++        if (userAlive(r.ownerId) === false) row.orphan = 'owner-missing'
++        row.ownerDisabled = userById.get(r.ownerId)?.accountEnabled === false
++      }
++      return row
++    }
++
++    if (!r.members.length) {
++      row.orphan = 'no-members'
++      return row
++    }
++    const states = r.members.map((m) => (m.type === 'user' ? userAlive(m.id) : groupAlive(m.id)))
++    if (states.every((s) => s === false)) {
++      row.orphan = 'members-gone'
++    } else {
++      // only flag a missing manager when we know the state of every manager grant
++      const managers = r.members.map((m, i) => ({ m, s: states[i] })).filter(({ m }) => m.manager)
++      row.noManager = managers.every(({ s }) => s === false)
++    }
++    return row
++  })
++
++  return { rows: out, unverified }
++}
++
++export function summarizeOrphans(rows: SpaceRow[]): OrphanSummary {
++  const count = (reason: OrphanReason) => rows.filter((r) => r.orphan === reason).length
++  const orphans = rows.filter((r) => r.orphan)
++  return {
++    personalOwnerMissing: count('owner-missing'),
++    projectNoMembers: count('no-members'),
++    projectMembersGone: count('members-gone'),
++    total: orphans.length,
++    used: orphans.reduce((a, r) => a + r.used, 0),
++    ownerDisabled: rows.filter((r) => r.ownerDisabled).length,
++    noManager: rows.filter((r) => r.noManager).length
++  }
++}
++
++export const ORPHAN_LABEL: Record<OrphanReason, string> = {
++  'owner-missing': 'Owner no longer exists',
++  'no-members': 'No members',
++  'members-gone': 'All members deleted/empty'
++}
+diff --git a/packages/web-app-space-report/src/pdf.ts b/packages/web-app-space-report/src/pdf.ts
+new file mode 100644
+index 0000000..9eef423
+--- /dev/null
++++ b/packages/web-app-space-report/src/pdf.ts
+@@ -0,0 +1,186 @@
++import { jsPDF } from 'jspdf'
++import { autoTable } from 'jspdf-autotable'
++import { ReportData, dateTime, isoDate, sections } from './export'
++
++// ---- PDF ----------------------------------------------------------------------------------
++
++/** Helvetica only covers Latin-1 (WinAnsi); replace what it can't draw instead of printing garbage. */
++const pdfSafe = (s: string) =>
++  s
++    .replace(/[–—]/g, '-')
++    .replace(/≥/g, '>=')
++    .replace(/[^\x20-\x7e\xa0-\xff€]/g, '?')
++
++const ACCENT: [number, number, number] = [43, 43, 43]
++
++export function buildPdf(data: ReportData): Blob {
++  const { meta } = data
++  const s = sections(data)
++  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
++  const pageW = doc.internal.pageSize.getWidth()
++  const margin = 14
++  let y = margin
++
++  const safeRows = (rows: string[][]) => rows.map((r) => r.map(pdfSafe))
++  const tableDefaults = {
++    margin: { left: margin, right: margin },
++    styles: { fontSize: 8.5, cellPadding: 1.6, overflow: 'linebreak' as const },
++    headStyles: { fillColor: ACCENT, textColor: 255, fontStyle: 'bold' as const },
++    alternateRowStyles: { fillColor: [245, 245, 245] as [number, number, number] }
++  }
++  // header cells follow their column's alignment (autoTable applies columnStyles to the body only)
++  const alignHead = (c: any) => {
++    if (c.section !== 'head') return
++    const halign = c.table.styles?.columnStyles?.[c.column.index]?.halign
++    if (halign) c.cell.styles.halign = halign
++  }
++  const withHead = (fn?: (c: any) => void) => (c: any) => {
++    alignHead(c)
++    fn?.(c)
++  }
++  const nextY = () => ((doc as any).lastAutoTable?.finalY ?? y) + 8
++  const heading = (text: string) => {
++    if (y > doc.internal.pageSize.getHeight() - 40) {
++      doc.addPage()
++      y = margin
++    }
++    doc.setFont('helvetica', 'bold').setFontSize(12).text(pdfSafe(text), margin, y)
++    y += 3
++  }
++
++  // title
++  doc
++    .setFont('helvetica', 'bold')
++    .setFontSize(18)
++    .text('Space report', margin, y + 4)
++  doc.setFont('helvetica', 'normal').setFontSize(10)
++  doc.text(pdfSafe(meta.server), margin, y + 11)
++  doc.setTextColor(110)
++  doc.text(
++    pdfSafe(`Generated ${dateTime(meta.generatedAt)} by ${meta.generatedBy || 'unknown'}`),
++    margin,
++    y + 16
++  )
++  doc.setTextColor(0)
++  y += 24
++
++  // notes
++  doc.setFontSize(8.5).setTextColor(90)
++  for (const n of s.notes) {
++    const lines = doc.splitTextToSize(pdfSafe(`- ${n}`), pageW - 2 * margin)
++    doc.text(lines, margin, y)
++    y += lines.length * 3.8
++  }
++  doc.setTextColor(0)
++  y += 4
++
++  // overview + key figures side by side
++  heading('Overview')
++  const [ovHeader, ...ovRows] = s.overview
++  const half = (pageW - 2 * margin - 6) / 2
++  autoTable(doc, {
++    ...tableDefaults,
++    startY: y,
++    head: [ovHeader.map(pdfSafe)],
++    body: safeRows(ovRows),
++    tableWidth: half + 16,
++    columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
++    didParseCell: withHead((c) => {
++      if (c.section === 'body' && c.row.index === ovRows.length - 1)
++        c.cell.styles.fontStyle = 'bold'
++    })
++  })
++  const overviewEnd = nextY()
++  autoTable(doc, {
++    ...tableDefaults,
++    startY: y,
++    margin: { left: margin + half + 22, right: margin },
++    head: [['Key figure', 'Value']],
++    body: safeRows(s.keyFigures),
++    columnStyles: { 1: { halign: 'right' } },
++    didParseCell: withHead()
++  })
++  y = Math.max(overviewEnd, nextY())
++
++  heading('Largest spaces')
++  autoTable(doc, {
++    ...tableDefaults,
++    startY: y,
++    head: [['#', 'Space', 'Type', 'Used']],
++    body: s.largest.length ? safeRows(s.largest) : [['', 'No data', '', '']],
++    columnStyles: { 0: { halign: 'right', cellWidth: 8 }, 3: { halign: 'right' } },
++    didParseCell: withHead()
++  })
++  y = nextY()
++
++  heading('Fullest spaces (by quota)')
++  autoTable(doc, {
++    ...tableDefaults,
++    startY: y,
++    head: [['#', 'Space', 'Type', 'Full', 'Used / Quota']],
++    body: s.fullest.length ? safeRows(s.fullest) : [['', 'No spaces with a quota', '', '', '']],
++    columnStyles: {
++      0: { halign: 'right', cellWidth: 8 },
++      3: { halign: 'right' },
++      4: { halign: 'right' }
++    },
++    didParseCell: withHead((c) => {
++      const ratio = data.summary.fullest[c.row.index]?.ratio
++      if (
++        c.section === 'body' &&
++        c.column.index === 3 &&
++        ratio !== null &&
++        ratio !== undefined &&
++        ratio * 100 >= meta.thresholdPercent
++      ) {
++        c.cell.styles.textColor = [198, 40, 40]
++        c.cell.styles.fontStyle = 'bold'
++      }
++    })
++  })
++  y = nextY()
++
++  if (s.orphanCheck) {
++    heading(`Orphaned spaces (${s.orphans.length})`)
++    autoTable(doc, {
++      ...tableDefaults,
++      startY: y,
++      head: [['Type', 'Space', 'Reason', 'Used', 'Modified']],
++      body: s.orphans.length ? safeRows(s.orphans) : [['', 'No orphaned spaces found', '', '', '']],
++      columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right', cellWidth: 20 } },
++      didParseCell: withHead()
++    })
++    y = nextY()
++  }
++
++  doc.addPage()
++  y = margin
++  heading(`All spaces (${s.all.length})`)
++  autoTable(doc, {
++    ...tableDefaults,
++    startY: y,
++    head: [['Type', 'Name', 'Owner', 'Used', 'Quota', 'Full', 'Modified']],
++    body: safeRows(s.all),
++    styles: { ...tableDefaults.styles, fontSize: 7.5 },
++    columnStyles: {
++      0: { cellWidth: 22 },
++      3: { halign: 'right' },
++      4: { halign: 'right' },
++      5: { halign: 'right' },
++      6: { halign: 'right', cellWidth: 20 }
++    },
++    didParseCell: withHead()
++  })
++
++  // footer on every page
++  const pages = doc.getNumberOfPages()
++  for (let i = 1; i <= pages; i++) {
++    doc.setPage(i)
++    doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(130)
++    const h = doc.internal.pageSize.getHeight()
++    doc.text(pdfSafe(`${meta.server} - ${isoDate(meta.generatedAt)}`), margin, h - 8)
++    doc.text(`${i} / ${pages}`, pageW - margin, h - 8, { align: 'right' })
++  }
++
++  return doc.output('blob')
++}
+diff --git a/packages/web-app-space-report/src/report.ts b/packages/web-app-space-report/src/report.ts
+new file mode 100644
+index 0000000..f27bdee
+--- /dev/null
++++ b/packages/web-app-space-report/src/report.ts
+@@ -0,0 +1,222 @@
++// Pure logic for the report: normalising Graph drives, aggregating, formatting, CSV.
++
++export type SpaceKind = 'personal' | 'project' | 'vault-personal' | 'vault-project'
++
++export type QuotaState = 'normal' | 'nearing' | 'critical' | 'exceeded' | 'unknown'
++
++/** Subset of a libregraph Drive as returned by /graph/v1beta1/drives */
++export interface GraphDrive {
++  id?: string
++  name?: string
++  driveType?: string
++  driveAlias?: string
++  lastModifiedDateTime?: string
++  owner?: { user?: { id?: string; displayName?: string } }
++  quota?: { total?: number; used?: number; remaining?: number; state?: string }
++  root?: { deleted?: { state?: string }; permissions?: GraphPermission[] }
++}
++
++/** Space membership as listed in drive.root.permissions (v1beta1) */
++export interface GraphPermission {
++  roles?: string[]
++  grantedToV2?: {
++    user?: { id?: string; displayName?: string }
++    group?: { id?: string; displayName?: string }
++  }
++}
++
++export interface Member {
++  type: 'user' | 'group'
++  id: string
++  manager: boolean
++}
++
++export type OrphanReason = 'owner-missing' | 'no-members' | 'members-gone'
++
++/** "Manager" unified role (and the legacy v1 name) */
++export const MANAGER_ROLES = ['312c0871-5ef7-4b3a-85b6-0e4074c64049', 'manager']
++
++export interface SpaceRow {
++  id: string
++  kind: SpaceKind
++  name: string
++  owner: string
++  used: number
++  /** 0 = unlimited / not set */
++  quota: number
++  /** used / quota, null if unlimited */
++  ratio: number | null
++  state: QuotaState
++  disabled: boolean
++  lastModified: string | null
++  ownerId: string
++  members: Member[]
++  /** set by the orphan analysis */
++  orphan?: OrphanReason | null
++  ownerDisabled?: boolean
++  noManager?: boolean
++}
++
++const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
++
++const toState = (s: unknown): QuotaState =>
++  s === 'normal' || s === 'nearing' || s === 'critical' || s === 'exceeded' ? s : 'unknown'
++
++export function toRow(d: GraphDrive, vault: boolean): SpaceRow | null {
++  const type = d.driveType
++  if (type !== 'personal' && type !== 'project') return null // skip virtual/mountpoint (shares)
++  const kind = `${vault ? 'vault-' : ''}${type}` as SpaceKind
++  const used = num(d.quota?.used)
++  const quota = num(d.quota?.total)
++  return {
++    id: d.id || '',
++    kind,
++    name: d.name || d.driveAlias || d.id || '?',
++    owner: type === 'personal' ? d.owner?.user?.displayName || d.name || '' : '',
++    used,
++    quota,
++    ratio: quota ? used / quota : null,
++    state: toState(d.quota?.state),
++    disabled: d.root?.deleted?.state === 'trashed',
++    lastModified: d.lastModifiedDateTime || null,
++    ownerId: d.owner?.user?.id || '',
++    members: (d.root?.permissions || []).flatMap((p): Member[] => {
++      const manager = (p.roles || []).some((r) => MANAGER_ROLES.includes(r))
++      const u = p.grantedToV2?.user?.id
++      const g = p.grantedToV2?.group?.id
++      if (u) return [{ type: 'user', id: u, manager }]
++      if (g) return [{ type: 'group', id: g, manager }]
++      return []
++    })
++  }
++}
++
++export function toRows(drives: GraphDrive[] | null | undefined, vault = false): SpaceRow[] {
++  const seen = new Set<string>()
++  const rows: SpaceRow[] = []
++  for (const d of drives || []) {
++    const row = toRow(d, vault)
++    if (!row || (row.id && seen.has(row.id))) continue
++    if (row.id) seen.add(row.id)
++    rows.push(row)
++  }
++  return rows
++}
++
++export interface KindSummary {
++  count: number
++  disabled: number
++  used: number
++  /** sum of quotas of spaces that have one */
++  quotaAssigned: number
++  unlimited: number
++  overThreshold: number
++  exceeded: number
++}
++
++export interface Summary {
++  byKind: Record<SpaceKind, KindSummary>
++  total: KindSummary
++  largest: SpaceRow[]
++  fullest: SpaceRow[]
++}
++
++const emptyKind = (): KindSummary => ({
++  count: 0,
++  disabled: 0,
++  used: 0,
++  quotaAssigned: 0,
++  unlimited: 0,
++  overThreshold: 0,
++  exceeded: 0
++})
++
++/** threshold: ratio from which a space counts as "almost full" (default 0.9) */
++export function summarize(rows: SpaceRow[], threshold = 0.9, topN = 10): Summary {
++  const byKind = {
++    personal: emptyKind(),
++    project: emptyKind(),
++    'vault-personal': emptyKind(),
++    'vault-project': emptyKind()
++  } as Record<SpaceKind, KindSummary>
++  const total = emptyKind()
++
++  for (const r of rows) {
++    for (const k of [byKind[r.kind], total]) {
++      k.count++
++      if (r.disabled) k.disabled++
++      k.used += r.used
++      if (r.quota) k.quotaAssigned += r.quota
++      else k.unlimited++
++      if (r.ratio !== null && r.ratio >= threshold) k.overThreshold++
++      if (r.state === 'exceeded' || (r.ratio !== null && r.ratio >= 1)) k.exceeded++
++    }
++  }
++
++  const largest = [...rows].sort((a, b) => b.used - a.used).slice(0, topN)
++  const fullest = rows
++    .filter((r) => r.ratio !== null)
++    .sort((a, b) => (b.ratio as number) - (a.ratio as number))
++    .slice(0, topN)
++
++  return { byKind, total, largest, fullest }
++}
++
++const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
++
++/** Binary units (what storage admins compare with df/du), shown with the familiar names. */
++export function formatBytes(bytes: number, digits = 1): string {
++  if (!bytes) return '0 B'
++  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), UNITS.length - 1)
++  const value = bytes / Math.pow(1024, i)
++  return `${value.toFixed(i === 0 ? 0 : digits)} ${UNITS[i]}`
++}
++
++export function formatPercent(ratio: number | null): string {
++  return ratio === null ? '–' : `${(ratio * 100).toFixed(ratio < 0.1 ? 1 : 0)} %`
++}
++
++const csvCell = (v: unknown) => {
++  const s = v === null || v === undefined ? '' : String(v)
++  // quote always; neutralise spreadsheet formula injection
++  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s
++  return `"${safe.replace(/"/g, '""')}"`
++}
++
++export function toCsv(rows: SpaceRow[]): string {
++  const header = [
++    'type',
++    'name',
++    'owner',
++    'used_bytes',
++    'quota_bytes',
++    'used_percent',
++    'quota_state',
++    'disabled',
++    'orphaned',
++    'owner_disabled',
++    'no_manager',
++    'last_modified',
++    'id'
++  ]
++  const lines = rows.map((r) =>
++    [
++      r.kind,
++      r.name,
++      r.owner,
++      r.used,
++      r.quota || '',
++      r.ratio === null ? '' : (r.ratio * 100).toFixed(2),
++      r.state,
++      r.disabled ? 'yes' : 'no',
++      r.orphan || '',
++      r.ownerDisabled ? 'yes' : '',
++      r.noManager ? 'yes' : '',
++      r.lastModified || '',
++      r.id
++    ]
++      .map(csvCell)
++      .join(',')
++  )
++  return [header.map(csvCell).join(','), ...lines].join('\r\n') + '\r\n'
++}
+diff --git a/packages/web-app-space-report/src/save.ts b/packages/web-app-space-report/src/save.ts
+new file mode 100644
+index 0000000..349c681
+--- /dev/null
++++ b/packages/web-app-space-report/src/save.ts
+@@ -0,0 +1,75 @@
++// Saving a report into the user's personal space via Web's own WebDAV client.
++import type { SpaceResource } from '@ownclouders/web-client'
++
++/** Subset of clientService.webdav used here (keeps this module testable). */
++export interface WebDavSubset {
++  createFolder(
++    space: SpaceResource,
++    opts: { path: string; fetchFolder?: boolean }
++  ): Promise<unknown>
++  putFileContents(
++    space: SpaceResource,
++    opts: { path: string; content: string | ArrayBuffer; overwrite?: boolean }
++  ): Promise<unknown>
++}
++
++export const normalizeFolder = (folder: string) =>
++  folder
++    .split('/')
++    .map((p) => p.trim())
++    .filter((p) => p && p !== '.' && p !== '..')
++    .join('/')
++
++/** "space-report-host-2026-10-04.pdf" -> "space-report-host-2026-10-04-1907.pdf" (saves never overwrite) */
++export const withTime = (fileName: string, d: Date) => {
++  const hhmm = `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`
++  return fileName.replace(/(\.[^.]+)$/, `-${hhmm}$1`)
++}
++
++const isStatus = (e: unknown, code: number) => (e as { statusCode?: number })?.statusCode === code
++
++/**
++ * Creates the target folder (each level; existing ones answer 405) and uploads the file.
++ * If the name is taken, appends " (2)", " (3)", ... instead of overwriting.
++ * Returns the path inside the space.
++ */
++export async function saveToSpace({
++  webdav,
++  space,
++  folder,
++  fileName,
++  content
++}: {
++  webdav: WebDavSubset
++  space: SpaceResource
++  folder: string
++  fileName: string
++  content: string | ArrayBuffer
++}): Promise<string> {
++  const dir = normalizeFolder(folder)
++  let current = ''
++  for (const part of dir ? dir.split('/') : []) {
++    current += `/${part}`
++    try {
++      await webdav.createFolder(space, { path: current, fetchFolder: false })
++    } catch (e) {
++      if (!isStatus(e, 405)) throw e // 405 = already exists
++    }
++  }
++
++  const dot = fileName.lastIndexOf('.')
++  const base = dot > 0 ? fileName.slice(0, dot) : fileName
++  const ext = dot > 0 ? fileName.slice(dot) : ''
++  for (let n = 1; n <= 20; n++) {
++    const name = n === 1 ? fileName : `${base} (${n})${ext}`
++    const path = `${current}/${name}`
++    try {
++      await webdav.putFileContents(space, { path, content, overwrite: false })
++      return path
++    } catch (e) {
++      // overwrite: false -> oCIS answers 412 when the file exists
++      if (!isStatus(e, 412)) throw e
++    }
++  }
++  throw new Error('Could not find a free file name')
++}
+diff --git a/packages/web-app-space-report/src/views/ReportView.vue b/packages/web-app-space-report/src/views/ReportView.vue
+new file mode 100644
+index 0000000..2537177
+--- /dev/null
++++ b/packages/web-app-space-report/src/views/ReportView.vue
+@@ -0,0 +1,939 @@
++<template>
++  <main id="space-report" class="space-report oc-p-m" data-testid="space-report-view">
++    <header class="space-report-header oc-mb-m">
++      <div>
++        <h1 class="oc-m-rm">{{ $gettext('Space report') }}</h1>
++        <p class="oc-m-rm oc-text-muted oc-text-small">
++          <template v-if="generatedAt">
++            {{ $gettext('Generated %{date}', { date: generatedAt.toLocaleString() }) }} ·
++          </template>
++          {{ serverHost }}
++        </p>
++      </div>
++      <div class="space-report-actions no-print">
++        <oc-button :disabled="loading" @click="load">
++          <oc-icon name="refresh" size="small" />{{ $gettext('Refresh') }}
++        </oc-button>
++        <oc-button
++          :disabled="!rows.length || exporting || orphanStatus === 'running'"
++          @click="downloadPdf"
++        >
++          <oc-icon name="file-pdf" size="small" />PDF
++        </oc-button>
++        <oc-button
++          data-testid="space-report-markdown"
++          :disabled="!rows.length || orphanStatus === 'running'"
++          @click="downloadMarkdown"
++        >
++          <oc-icon name="markdown" size="small" />Markdown
++        </oc-button>
++        <oc-button
++          id="space-report-save-btn"
++          v-oc-tooltip="personalSpace ? '' : $gettext('You have no personal space to save into')"
++          :disabled="!rows.length || saving || !personalSpace || orphanStatus === 'running'"
++        >
++          <oc-icon :name="saving ? 'loader-4' : 'save'" size="small" />{{
++            $gettext('Save to my files')
++          }}
++        </oc-button>
++        <oc-drop
++          drop-id="space-report-save-drop"
++          toggle="#space-report-save-btn"
++          mode="click"
++          close-on-click
++          padding-size="small"
++        >
++          <ul class="space-report-menu">
++            <li>
++              <oc-button appearance="raw" @click="saveReport('pdf')">
++                <oc-icon name="file-pdf" size="small" />{{ $gettext('Save as PDF') }}
++              </oc-button>
++            </li>
++            <li>
++              <oc-button appearance="raw" @click="saveReport('md')">
++                <oc-icon name="markdown" size="small" />{{ $gettext('Save as Markdown') }}
++              </oc-button>
++            </li>
++          </ul>
++          <p class="oc-text-small oc-text-muted oc-m-rm oc-mt-xs">
++            {{ $gettext('Folder: %{folder}', { folder: saveFolderLabel }) }}
++          </p>
++        </oc-drop>
++        <oc-button :disabled="!rows.length" @click="downloadCsv">
++          <oc-icon name="file-download" size="small" />CSV
++        </oc-button>
++        <oc-button :disabled="!rows.length" @click="print">
++          <oc-icon name="printer" size="small" />{{ $gettext('Print') }}
++        </oc-button>
++      </div>
++    </header>
++
++    <div v-if="loading && !rows.length" class="oc-flex oc-flex-middle oc-p-l">
++      <oc-spinner :aria-label="$gettext('Loading spaces')" class="oc-mr-s" />
++      {{ $gettext('Loading spaces…') }}
++    </div>
++
++    <div v-if="error" class="space-report-notice space-report-notice-error oc-mb-m">
++      <oc-icon name="error-warning" class="oc-mr-s" />{{ error }}
++    </div>
++    <div v-if="!canSeeForeignPersonal" class="space-report-notice oc-mb-m">
++      <oc-icon name="information" class="oc-mr-s" />
++      {{
++        $gettext(
++          "Other users' personal spaces are only listed for accounts with user management permission (Admin role). The numbers below may be incomplete."
++        )
++      }}
++    </div>
++    <div v-if="vaultStatus === 'mfa-required'" class="space-report-notice oc-mb-m">
++      <oc-icon name="information" class="oc-mr-s" />
++      {{ $gettext('Vault spaces are not included: listing them needs a session with MFA.') }}
++    </div>
++    <div v-else-if="vaultStatus === 'error'" class="space-report-notice oc-mb-m">
++      <oc-icon name="information" class="oc-mr-s" />
++      {{ $gettext('Vault spaces could not be loaded.') }}
++    </div>
++
++    <template v-if="rows.length || (!loading && !error)">
++      <!-- summary tiles -->
++      <section class="space-report-tiles oc-mb-l">
++        <div class="space-report-tile" data-testid="space-report-tile-personal">
++          <div class="space-report-tile-label">{{ $gettext('Personal spaces') }}</div>
++          <div class="space-report-tile-value">{{ summary.byKind.personal.count }}</div>
++          <div class="space-report-tile-sub">
++            {{ formatBytes(summary.byKind.personal.used) }} {{ $gettext('used') }}
++          </div>
++        </div>
++        <div class="space-report-tile" data-testid="space-report-tile-project">
++          <div class="space-report-tile-label">{{ $gettext('Project spaces') }}</div>
++          <div class="space-report-tile-value">{{ summary.byKind.project.count }}</div>
++          <div class="space-report-tile-sub">
++            {{ formatBytes(summary.byKind.project.used) }} {{ $gettext('used') }}
++            <template v-if="summary.byKind.project.disabled">
++              · {{ $gettext('%{n} disabled', { n: String(summary.byKind.project.disabled) }) }}
++            </template>
++          </div>
++        </div>
++        <div v-if="vaultStatus === 'ok'" class="space-report-tile">
++          <div class="space-report-tile-label">{{ $gettext('Vault spaces') }}</div>
++          <div class="space-report-tile-value">{{ vaultCount }}</div>
++          <div class="space-report-tile-sub">
++            {{ formatBytes(vaultUsed) }} {{ $gettext('used') }}
++          </div>
++        </div>
++        <div class="space-report-tile">
++          <div class="space-report-tile-label">{{ $gettext('Total used') }}</div>
++          <div class="space-report-tile-value">{{ formatBytes(summary.total.used) }}</div>
++          <div class="space-report-tile-sub">
++            {{
++              $gettext('%{quota} quota assigned', {
++                quota: formatBytes(summary.total.quotaAssigned)
++              })
++            }}
++            <template v-if="summary.total.unlimited">
++              · {{ $gettext('%{n} unlimited', { n: String(summary.total.unlimited) }) }}
++            </template>
++          </div>
++        </div>
++        <div
++          class="space-report-tile"
++          :class="{ 'space-report-tile-warn': summary.total.overThreshold }"
++        >
++          <div class="space-report-tile-label">
++            {{ $gettext('≥ %{p} % full', { p: String(thresholdPercent) }) }}
++          </div>
++          <div class="space-report-tile-value">{{ summary.total.overThreshold }}</div>
++          <div class="space-report-tile-sub">
++            {{ $gettext('%{n} at or over quota', { n: String(summary.total.exceeded) }) }}
++          </div>
++        </div>
++        <div
++          class="space-report-tile"
++          :class="{ 'space-report-tile-warn': orphanStatus === 'ok' && orphanSummary.total }"
++        >
++          <div class="space-report-tile-label">{{ $gettext('Orphaned spaces') }}</div>
++          <template v-if="orphanStatus === 'ok'">
++            <div class="space-report-tile-value">{{ orphanSummary.total }}</div>
++            <div class="space-report-tile-sub">
++              {{
++                $gettext('%{p} personal · %{s} project · %{size}', {
++                  p: String(orphanSummary.personalOwnerMissing),
++                  s: String(orphanSummary.projectNoMembers + orphanSummary.projectMembersGone),
++                  size: formatBytes(orphanSummary.used)
++                })
++              }}
++            </div>
++          </template>
++          <template v-else>
++            <div class="space-report-tile-value">
++              <oc-spinner
++                v-if="orphanStatus === 'running' || orphanStatus === 'pending'"
++                size="small"
++                :aria-label="$gettext('Checking')"
++              />
++              <span v-else>–</span>
++            </div>
++            <div class="space-report-tile-sub">
++              <template v-if="orphanStatus === 'skipped'">{{
++                $gettext('needs the Admin role')
++              }}</template>
++              <template v-else-if="orphanStatus === 'error'">{{
++                $gettext('check failed')
++              }}</template>
++              <template v-else>{{ $gettext('checking users and groups…') }}</template>
++            </div>
++          </template>
++        </div>
++        <div class="space-report-tile">
++          <div class="space-report-tile-label">{{ $gettext('Avg. per personal space') }}</div>
++          <div class="space-report-tile-value">{{ formatBytes(avgPersonal) }}</div>
++          <div class="space-report-tile-sub">
++            {{ $gettext('median %{m}', { m: formatBytes(medianPersonal) }) }}
++          </div>
++        </div>
++      </section>
++
++      <!-- top lists -->
++      <section class="space-report-tops oc-mb-l">
++        <div>
++          <h2 class="oc-mb-s">{{ $gettext('Largest spaces') }}</h2>
++          <ol class="space-report-bars">
++            <li v-for="r in summary.largest" :key="'l' + r.id">
++              <div class="space-report-bar-label">
++                <span class="oc-text-truncate">{{ r.name }}</span>
++                <span class="space-report-num">{{ formatBytes(r.used) }}</span>
++              </div>
++              <div class="space-report-bar-track">
++                <div class="space-report-bar" :style="{ width: barWidth(r.used, maxUsed) }" />
++              </div>
++            </li>
++            <li v-if="!summary.largest.length" class="oc-text-muted">{{ $gettext('No data') }}</li>
++          </ol>
++        </div>
++        <div>
++          <h2 class="oc-mb-s">{{ $gettext('Fullest spaces (by quota)') }}</h2>
++          <ol class="space-report-bars">
++            <li v-for="r in summary.fullest" :key="'f' + r.id">
++              <div class="space-report-bar-label">
++                <span class="oc-text-truncate">{{ r.name }}</span>
++                <span class="space-report-num">
++                  {{ formatPercent(r.ratio) }} · {{ formatBytes(r.used) }} /
++                  {{ formatBytes(r.quota) }}
++                </span>
++              </div>
++              <div class="space-report-bar-track">
++                <div
++                  class="space-report-bar"
++                  :class="{ 'space-report-bar-warn': (r.ratio as number) >= threshold }"
++                  :style="{ width: barWidth(r.ratio as number, 1) }"
++                />
++              </div>
++            </li>
++            <li v-if="!summary.fullest.length" class="oc-text-muted">
++              {{ $gettext('No spaces with a quota') }}
++            </li>
++          </ol>
++        </div>
++      </section>
++
++      <!-- orphaned spaces -->
++      <section v-if="orphanStatus === 'ok'" class="oc-mb-l">
++        <h2 class="oc-mb-s">{{ $gettext('Orphaned spaces') }}</h2>
++        <p class="oc-text-small oc-text-muted oc-mt-rm">
++          {{
++            $gettext(
++              'Personal spaces whose owner no longer exists in the user backend, and project spaces without members or whose members were all deleted (or are empty groups).'
++            )
++          }}
++        </p>
++        <table v-if="orphanRows.length" class="space-report-table oc-mb-s">
++          <thead>
++            <tr>
++              <th>{{ $gettext('Type') }}</th>
++              <th>{{ $gettext('Name') }}</th>
++              <th>{{ $gettext('Reason') }}</th>
++              <th class="space-report-num">{{ $gettext('Used') }}</th>
++              <th class="space-report-num">{{ $gettext('Last modified') }}</th>
++            </tr>
++          </thead>
++          <tbody>
++            <tr v-for="r in orphanRows" :key="'o' + r.kind + r.id">
++              <td>{{ kindLabel(r.kind) }}</td>
++              <td>
++                {{ r.name }}
++                <span v-if="r.disabled" class="oc-text-small oc-text-muted"
++                  >({{ $gettext('disabled') }})</span
++                >
++              </td>
++              <td>{{ orphanLabel(r) }}</td>
++              <td class="space-report-num">{{ formatBytes(r.used) }}</td>
++              <td class="space-report-num">
++                {{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}
++              </td>
++            </tr>
++          </tbody>
++          <tfoot>
++            <tr>
++              <td colspan="3">{{ $gettext('%{n} spaces', { n: String(orphanRows.length) }) }}</td>
++              <td class="space-report-num">{{ formatBytes(orphanSummary.used) }}</td>
++              <td />
++            </tr>
++          </tfoot>
++        </table>
++        <p v-else class="oc-text-muted">{{ $gettext('No orphaned spaces found.') }}</p>
++        <ul class="oc-text-small space-report-hints">
++          <li v-if="orphanSummary.noManager">
++            {{
++              $gettext('%{n} project spaces have members but no manager.', {
++                n: String(orphanSummary.noManager)
++              })
++            }}
++          </li>
++          <li v-if="orphanSummary.ownerDisabled">
++            {{
++              $gettext('%{n} personal spaces belong to disabled accounts.', {
++                n: String(orphanSummary.ownerDisabled)
++              })
++            }}
++          </li>
++          <li v-if="orphanUnverified">
++            {{
++              $gettext(
++                '%{n} users/groups could not be verified; spaces depending on them are not counted as orphaned.',
++                {
++                  n: String(orphanUnverified)
++                }
++              )
++            }}
++          </li>
++        </ul>
++      </section>
++
++      <!-- full list -->
++      <section>
++        <div class="space-report-filters oc-mb-s no-print">
++          <h2 class="oc-m-rm oc-mr-m">{{ $gettext('All spaces') }}</h2>
++          <oc-button
++            v-for="f in kindFilters"
++            :key="f.value"
++            size="small"
++            :appearance="kindFilter === f.value ? 'filled' : 'outline'"
++            :variation="kindFilter === f.value ? 'primary' : 'passive'"
++            @click="kindFilter = f.value"
++          >
++            {{ f.label }}
++          </oc-button>
++          <oc-text-input
++            v-model="search"
++            class="space-report-search"
++            :label="$gettext('Search name or owner')"
++            :clear-button-enabled="true"
++          />
++        </div>
++
++        <table class="space-report-table">
++          <thead>
++            <tr>
++              <th v-for="c in columns" :key="c.key" :class="c.class">
++                <button class="space-report-sort" type="button" @click="sortBy(c.key)">
++                  {{ c.label }}
++                  <span v-if="sortKey === c.key">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
++                </button>
++              </th>
++            </tr>
++          </thead>
++          <tbody>
++            <tr
++              v-for="r in visibleRows"
++              :key="r.kind + r.id"
++              data-testid="space-report-row"
++              :class="{ 'space-report-row-disabled': r.disabled }"
++            >
++              <td>{{ kindLabel(r.kind) }}</td>
++              <td>
++                {{ r.name }}
++                <span v-if="r.disabled" class="oc-text-small oc-text-muted"
++                  >({{ $gettext('disabled') }})</span
++                >
++                <span v-if="r.orphan" class="space-report-badge">{{ $gettext('orphaned') }}</span>
++                <span v-else-if="r.noManager" class="space-report-badge space-report-badge-soft">{{
++                  $gettext('no manager')
++                }}</span>
++              </td>
++              <td>{{ r.owner }}</td>
++              <td class="space-report-num">{{ formatBytes(r.used) }}</td>
++              <td class="space-report-num">
++                {{ r.quota ? formatBytes(r.quota) : $gettext('unlimited') }}
++              </td>
++              <td
++                class="space-report-num"
++                :class="{ 'space-report-warn-text': r.ratio !== null && r.ratio >= threshold }"
++              >
++                {{ formatPercent(r.ratio) }}
++              </td>
++              <td class="space-report-num">
++                {{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}
++              </td>
++            </tr>
++            <tr v-if="!filteredRows.length">
++              <td colspan="7" class="oc-text-muted">{{ $gettext('No spaces match.') }}</td>
++            </tr>
++          </tbody>
++          <tfoot v-if="filteredRows.length">
++            <tr>
++              <td colspan="3">{{ $gettext('%{n} spaces', { n: String(filteredRows.length) }) }}</td>
++              <td class="space-report-num">{{ formatBytes(filteredUsed) }}</td>
++              <td colspan="3" />
++            </tr>
++          </tfoot>
++        </table>
++        <div v-if="filteredRows.length > visibleRows.length" class="oc-mt-s no-print">
++          <oc-button size="small" @click="limit += 200">
++            {{
++              $gettext('Show more (%{n} left)', {
++                n: String(filteredRows.length - visibleRows.length)
++              })
++            }}
++          </oc-button>
++        </div>
++      </section>
++    </template>
++  </main>
++</template>
++
++<script lang="ts" setup>
++import { computed, onMounted, ref, unref, watch } from 'vue'
++import { useGettext } from 'vue3-gettext'
++import {
++  useAbility,
++  useAuthStore,
++  useConfigStore,
++  useClientService,
++  useMessages,
++  useSpacesStore,
++  useUserStore
++} from '@ownclouders/web-pkg'
++import { useCapabilityStore } from '../compat'
++import { exists, fetchDrives, fetchGroups, fetchUsers, GraphError } from '../api'
++import { ORPHAN_LABEL, analyzeOrphans, summarizeOrphans } from '../orphans'
++import {
++  SpaceKind,
++  SpaceRow,
++  formatBytes,
++  formatPercent,
++  summarize,
++  toCsv,
++  toRows
++} from '../report'
++import { useReportConfig } from '../config'
++import { ReportData, buildMarkdown, downloadBlob, reportFileName } from '../export'
++import { normalizeFolder, saveToSpace, withTime } from '../save'
++
++type SortKey = 'kind' | 'name' | 'owner' | 'used' | 'quota' | 'ratio' | 'lastModified'
++
++const { $gettext } = useGettext()
++const authStore = useAuthStore()
++const configStore = useConfigStore()
++const capabilityStore = useCapabilityStore()
++const { can } = useAbility()
++const reportConfig = useReportConfig()
++const userStore = useUserStore()
++const { showMessage, showErrorMessage } = useMessages()
++const clientService = useClientService()
++const spacesStore = useSpacesStore()
++
++const threshold = computed(() => reportConfig.thresholdPercent / 100)
++const thresholdPercent = computed(() => reportConfig.thresholdPercent)
++
++const loading = ref(false)
++const error = ref<string | null>(null)
++const rows = ref<SpaceRow[]>([])
++const vaultStatus = ref<'ok' | 'disabled' | 'mfa-required' | 'error'>('disabled')
++const generatedAt = ref<Date | null>(null)
++const orphanStatus = ref<'pending' | 'running' | 'ok' | 'skipped' | 'error'>('pending')
++const orphanUnverified = ref(0)
++
++const canSeeForeignPersonal = computed(() => can('read-all', 'Account'))
++const serverHost = computed(() => {
++  try {
++    return new URL(configStore.serverUrl).host
++  } catch {
++    return configStore.serverUrl
++  }
++})
++
++let controller: AbortController | undefined
++
++const load = async () => {
++  controller?.abort()
++  controller = new AbortController()
++  const { signal } = controller
++  const common = { serverUrl: configStore.serverUrl, accessToken: authStore.accessToken, signal }
++
++  loading.value = true
++  error.value = null
++  try {
++    const [personal, project] = await Promise.all([
++      fetchDrives({ ...common, driveType: 'personal' }),
++      fetchDrives({ ...common, driveType: 'project' })
++    ])
++    let vaultRows: SpaceRow[] = []
++    if (capabilityStore.vaultEnabled) {
++      try {
++        const [vp, vpr] = await Promise.all([
++          fetchDrives({ ...common, driveType: 'personal', vault: true }),
++          fetchDrives({ ...common, driveType: 'project', vault: true })
++        ])
++        vaultRows = [...toRows(vp, true), ...toRows(vpr, true)]
++        vaultStatus.value = 'ok'
++      } catch (e) {
++        if (signal.aborted) return
++        vaultStatus.value =
++          e instanceof GraphError && (e.mfaRequired || e.status === 401 || e.status === 403)
++            ? 'mfa-required'
++            : 'error'
++        console.warn('[space-report] vault spaces', e)
++      }
++    } else {
++      vaultStatus.value = 'disabled'
++    }
++    rows.value = [...toRows(personal), ...toRows(project), ...vaultRows]
++    generatedAt.value = new Date()
++    loading.value = false
++    await runOrphanAnalysis(signal)
++  } catch (e) {
++    if (signal.aborted) return
++    console.error('[space-report]', e)
++    error.value = e instanceof Error ? e.message : String(e)
++  } finally {
++    if (!signal.aborted) loading.value = false
++  }
++}
++
++/** Cross-checks owners and members against the user/group backend (admins only). */
++const runOrphanAnalysis = async (signal: AbortSignal) => {
++  orphanUnverified.value = 0
++  if (!unref(canSeeForeignPersonal)) {
++    orphanStatus.value = 'skipped'
++    return
++  }
++  orphanStatus.value = 'running'
++  const { serverUrl } = configStore
++  const token = authStore.accessToken
++  try {
++    const [users, groups] = await Promise.all([
++      fetchUsers(serverUrl, token, signal),
++      // without the group list, group memberships are treated as "unknown", never as orphaned
++      fetchGroups(serverUrl, token, signal).catch((e) => {
++        console.warn('[space-report] groups', e)
++        return null
++      })
++    ])
++    const result = await analyzeOrphans({
++      rows: unref(rows),
++      users,
++      groups,
++      lookups: {
++        userExists: (id) => exists(serverUrl, token, 'users', id, signal),
++        groupExists: (id) => exists(serverUrl, token, 'groups', id, signal)
++      }
++    })
++    if (signal.aborted) return
++    rows.value = result.rows
++    orphanUnverified.value = result.unverified
++    orphanStatus.value = 'ok'
++  } catch (e) {
++    if (signal.aborted) return
++    console.error('[space-report] orphan analysis', e)
++    orphanStatus.value = 'error'
++  }
++}
++
++onMounted(load)
++
++const orphanSummary = computed(() => summarizeOrphans(unref(rows)))
++const orphanRows = computed(() =>
++  unref(rows)
++    .filter((r) => r.orphan)
++    .sort((a, b) => b.used - a.used)
++)
++const orphanLabel = (r: SpaceRow) =>
++  r.orphan
++    ? {
++        'owner-missing': $gettext('Owner no longer exists'),
++        'no-members': $gettext('No members'),
++        'members-gone': $gettext('All members deleted or empty groups')
++      }[r.orphan] || ORPHAN_LABEL[r.orphan]
++    : ''
++
++// ---- summary --------------------------------------------------------------------------------
++
++const summary = computed(() => summarize(unref(rows), unref(threshold), reportConfig.topN))
++const vaultCount = computed(
++  () => summary.value.byKind['vault-personal'].count + summary.value.byKind['vault-project'].count
++)
++const vaultUsed = computed(
++  () => summary.value.byKind['vault-personal'].used + summary.value.byKind['vault-project'].used
++)
++const personalUsages = computed(() =>
++  unref(rows)
++    .filter((r) => r.kind === 'personal')
++    .map((r) => r.used)
++    .sort((a, b) => a - b)
++)
++const avgPersonal = computed(() => {
++  const u = unref(personalUsages)
++  return u.length ? u.reduce((a, b) => a + b, 0) / u.length : 0
++})
++const medianPersonal = computed(() => {
++  const u = unref(personalUsages)
++  if (!u.length) return 0
++  const mid = Math.floor(u.length / 2)
++  return u.length % 2 ? u[mid] : (u[mid - 1] + u[mid]) / 2
++})
++const maxUsed = computed(() => summary.value.largest[0]?.used || 0)
++const barWidth = (value: number, max: number) =>
++  `${max ? Math.max(1, Math.min(100, (value / max) * 100)) : 0}%`
++
++// ---- table ----------------------------------------------------------------------------------
++
++const kindLabel = (k: SpaceKind) =>
++  ({
++    personal: $gettext('Personal'),
++    project: $gettext('Project'),
++    'vault-personal': $gettext('Vault personal'),
++    'vault-project': $gettext('Vault project')
++  })[k]
++
++const kindFilter = ref<'all' | 'personal' | 'project' | 'vault' | 'orphaned'>('all')
++const kindFilters = computed(() => [
++  { value: 'all' as const, label: $gettext('All') },
++  { value: 'personal' as const, label: $gettext('Personal') },
++  { value: 'project' as const, label: $gettext('Project') },
++  ...(unref(vaultStatus) === 'ok' ? [{ value: 'vault' as const, label: $gettext('Vault') }] : []),
++  ...(unref(orphanStatus) === 'ok'
++    ? [{ value: 'orphaned' as const, label: $gettext('Orphaned') }]
++    : [])
++])
++
++const search = ref('')
++const sortKey = ref<SortKey>('used')
++const sortDir = ref<'asc' | 'desc'>('desc')
++const limit = ref(200)
++
++const columns = computed<{ key: SortKey; label: string; class?: string }[]>(() => [
++  { key: 'kind', label: $gettext('Type') },
++  { key: 'name', label: $gettext('Name') },
++  { key: 'owner', label: $gettext('Owner') },
++  { key: 'used', label: $gettext('Used'), class: 'space-report-num' },
++  { key: 'quota', label: $gettext('Quota'), class: 'space-report-num' },
++  { key: 'ratio', label: $gettext('Full'), class: 'space-report-num' },
++  { key: 'lastModified', label: $gettext('Last modified'), class: 'space-report-num' }
++])
++
++const sortBy = (key: SortKey) => {
++  if (unref(sortKey) === key) {
++    sortDir.value = unref(sortDir) === 'asc' ? 'desc' : 'asc'
++  } else {
++    sortKey.value = key
++    sortDir.value = ['used', 'quota', 'ratio', 'lastModified'].includes(key) ? 'desc' : 'asc'
++  }
++}
++
++const filteredRows = computed(() => {
++  const q = unref(search).trim().toLowerCase()
++  const kind = unref(kindFilter)
++  const key = unref(sortKey)
++  const dir = unref(sortDir) === 'asc' ? 1 : -1
++  return unref(rows)
++    .filter((r) => {
++      if (kind === 'vault' && !r.kind.startsWith('vault-')) return false
++      if (kind === 'orphaned' && !r.orphan) return false
++      if ((kind === 'personal' || kind === 'project') && r.kind !== kind) return false
++      return !q || r.name.toLowerCase().includes(q) || r.owner.toLowerCase().includes(q)
++    })
++    .sort((a, b) => {
++      const va = a[key] ?? (key === 'ratio' ? -1 : '')
++      const vb = b[key] ?? (key === 'ratio' ? -1 : '')
++      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
++      return String(va).localeCompare(String(vb)) * dir
++    })
++})
++watch([search, kindFilter], () => (limit.value = 200))
++const visibleRows = computed(() => unref(filteredRows).slice(0, unref(limit)))
++const filteredUsed = computed(() => unref(filteredRows).reduce((a, r) => a + r.used, 0))
++
++// ---- export ---------------------------------------------------------------------------------
++
++const downloadCsv = () => {
++  const blob = new Blob([toCsv(unref(filteredRows))], { type: 'text/csv;charset=utf-8' })
++  downloadBlob(
++    blob,
++    `space-report-${serverHost.value}-${new Date().toISOString().slice(0, 10)}.csv`
++  )
++}
++
++/** Markdown/PDF always cover all spaces (not the current filter), like a status report should. */
++const reportData = (): ReportData => ({
++  meta: {
++    server: unref(serverHost),
++    generatedAt: unref(generatedAt) || new Date(),
++    generatedBy: userStore.user?.displayName || userStore.user?.onPremisesSamAccountName || '',
++    thresholdPercent: unref(thresholdPercent),
++    vault: unref(vaultStatus),
++    complete: unref(canSeeForeignPersonal),
++    orphans: unref(orphanStatus),
++    orphansUnverified: unref(orphanUnverified)
++  },
++  summary: unref(summary),
++  rows: unref(rows)
++})
++
++const downloadMarkdown = () => {
++  const data = reportData()
++  const blob = new Blob([buildMarkdown(data)], { type: 'text/markdown;charset=utf-8' })
++  downloadBlob(blob, reportFileName(data.meta, 'md'))
++}
++
++const personalSpace = computed(() => spacesStore.personalSpace)
++const saveFolderLabel = computed(() => {
++  const folder = normalizeFolder(reportConfig.saveFolder)
++  return `${$gettext('Personal')}/${folder}`.replace(/\/$/, '')
++})
++
++const saving = ref(false)
++const saveReport = async (format: 'pdf' | 'md') => {
++  const space = unref(personalSpace)
++  if (!space) return
++  saving.value = true
++  try {
++    const data = reportData()
++    let content: string | ArrayBuffer
++    if (format === 'pdf') {
++      const { buildPdf } = await import('../pdf')
++      content = await buildPdf(data).arrayBuffer()
++    } else {
++      content = buildMarkdown(data)
++    }
++    const path = await saveToSpace({
++      webdav: clientService.webdav as any,
++      space,
++      folder: reportConfig.saveFolder,
++      fileName: withTime(reportFileName(data.meta, format), new Date()),
++      content
++    })
++    showMessage({
++      title: $gettext('Report saved'),
++      desc: `${$gettext('Personal')}${path}`
++    })
++  } catch (e) {
++    console.error('[space-report] save', e)
++    showErrorMessage({ title: $gettext('Saving the report failed'), errors: [e as Error] })
++  } finally {
++    saving.value = false
++  }
++}
++
++const exporting = ref(false)
++const downloadPdf = async () => {
++  exporting.value = true
++  try {
++    // jsPDF is only loaded when needed
++    const { buildPdf } = await import('../pdf')
++    const data = reportData()
++    downloadBlob(buildPdf(data), reportFileName(data.meta, 'pdf'))
++  } catch (e) {
++    console.error('[space-report] pdf', e)
++    showErrorMessage({ title: $gettext('Creating the PDF failed'), errors: [e as Error] })
++  } finally {
++    exporting.value = false
++  }
++}
++
++const print = () => {
++  // print everything, not only the rows loaded so far
++  limit.value = Number.MAX_SAFE_INTEGER
++  setTimeout(() => window.print(), 50)
++}
++</script>
++
++<style>
++/* print only the report, not the Web chrome (unscoped on purpose) */
++@media print {
++  body * {
++    visibility: hidden !important;
++  }
++  #space-report,
++  #space-report * {
++    visibility: visible !important;
++  }
++  #space-report {
++    position: absolute;
++    inset: 0 auto auto 0;
++    width: 100%;
++    overflow: visible !important;
++  }
++  #space-report .no-print {
++    display: none !important;
++  }
++}
++</style>
++
++<style scoped>
++.space-report {
++  overflow-y: auto;
++  height: 100%;
++  box-sizing: border-box;
++}
++.space-report-header {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 1rem;
++  justify-content: space-between;
++  align-items: flex-end;
++}
++.space-report-actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.5rem;
++}
++.space-report-menu {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++}
++.space-report-menu li {
++  padding: 0.25rem 0.25rem;
++}
++.space-report-notice {
++  display: flex;
++  align-items: center;
++  padding: 0.5rem 0.75rem;
++  border-radius: 6px;
++  border: 1px solid var(--oc-role-outline-variant, #ccc);
++}
++.space-report-notice-error {
++  border-color: var(--oc-role-error, #c62828);
++}
++.space-report-tiles {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
++  gap: 0.75rem;
++}
++.space-report-tile {
++  border: 1px solid var(--oc-role-outline-variant, #ddd);
++  border-radius: 8px;
++  padding: 0.75rem 1rem;
++}
++.space-report-tile-warn {
++  border-color: var(--oc-role-error, #c62828);
++}
++.space-report-tile-label {
++  font-size: 0.85rem;
++  opacity: 0.75;
++}
++.space-report-tile-value {
++  font-size: 1.75rem;
++  font-weight: 600;
++  font-variant-numeric: tabular-nums;
++  line-height: 1.3;
++}
++.space-report-tile-sub {
++  font-size: 0.8rem;
++  opacity: 0.75;
++}
++.space-report-tops {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
++  gap: 2rem;
++}
++.space-report-bars {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++}
++.space-report-bars li {
++  margin-bottom: 0.5rem;
++}
++.space-report-bar-label {
++  display: flex;
++  justify-content: space-between;
++  gap: 1rem;
++  font-size: 0.85rem;
++}
++.space-report-bar-track {
++  height: 6px;
++  border-radius: 3px;
++  background: var(--oc-role-surface-container-high, #eee);
++  overflow: hidden;
++}
++.space-report-bar {
++  height: 100%;
++  background: var(--oc-role-primary, #4a76b8);
++}
++.space-report-bar-warn {
++  background: var(--oc-role-error, #c62828);
++}
++.space-report-filters {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: flex-end;
++  gap: 0.5rem;
++}
++.space-report-search {
++  margin-left: auto;
++  min-width: 240px;
++}
++.space-report-table {
++  width: 100%;
++  border-collapse: collapse;
++  font-size: 0.9rem;
++}
++.space-report-table th,
++.space-report-table td {
++  padding: 0.4rem 0.6rem;
++  border-bottom: 1px solid var(--oc-role-outline-variant, #e5e5e5);
++  text-align: left;
++}
++.space-report-table tfoot td {
++  font-weight: 600;
++  border-bottom: none;
++}
++.space-report-sort {
++  background: none;
++  border: none;
++  padding: 0;
++  font: inherit;
++  font-weight: 600;
++  color: inherit;
++  cursor: pointer;
++}
++.space-report-num {
++  text-align: right !important;
++  font-variant-numeric: tabular-nums;
++  white-space: nowrap;
++}
++.space-report-warn-text {
++  color: var(--oc-role-error, #c62828);
++  font-weight: 600;
++}
++.space-report-badge {
++  display: inline-block;
++  margin-left: 0.4rem;
++  padding: 0 0.4rem;
++  border-radius: 999px;
++  font-size: 0.75rem;
++  background: var(--oc-role-error, #c62828);
++  color: var(--oc-role-on-error, #fff);
++}
++.space-report-badge-soft {
++  background: var(--oc-role-surface-container-high, #eee);
++  color: inherit;
++}
++.space-report-hints {
++  margin: 0;
++  padding-left: 1.2rem;
++}
++.space-report-row-disabled {
++  opacity: 0.6;
++}
++</style>
+diff --git a/packages/web-app-space-report/tests/e2e/spaceReport.spec.ts b/packages/web-app-space-report/tests/e2e/spaceReport.spec.ts
+new file mode 100644
+index 0000000..4605e51
+--- /dev/null
++++ b/packages/web-app-space-report/tests/e2e/spaceReport.spec.ts
+@@ -0,0 +1,58 @@
++import { test, type Page, type APIRequestContext, expect } from '@playwright/test'
++import { loginAsUser, logout } from '../../../../support/helpers/authHelper'
++
++const PROJECT = 'e2e space report'
++const auth = { Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}` }
++
++let adminPage: Page
++
++/** Disable + purge the test project so runs stay idempotent. */
++async function deleteTestProject(request: APIRequestContext): Promise<void> {
++  const res = await request.get(`/graph/v1beta1/drives?$filter=driveType eq project`, {
++    headers: auth
++  })
++  if (!res.ok()) {
++    return
++  }
++  const body = (await res.json()) as { value?: Array<{ id: string; name: string }> }
++  for (const drive of body?.value ?? []) {
++    if (drive.name === PROJECT) {
++      const url = `/graph/v1.0/drives/${encodeURIComponent(drive.id)}`
++      await request.delete(url, { headers: auth })
++      await request.delete(url, { headers: { ...auth, Purge: 'T' } })
++    }
++  }
++}
++
++test.describe('Space Report', () => {
++  test.beforeEach(async ({ browser, request }) => {
++    await deleteTestProject(request)
++    const created = await request.post('/graph/v1beta1/drives', {
++      headers: auth,
++      data: { name: PROJECT, quota: { total: 10 * 1024 * 1024 } }
++    })
++    expect(created.ok()).toBeTruthy()
++    const { page } = await loginAsUser(browser, 'admin', 'admin')
++    adminPage = page
++  })
++
++  test.afterEach(async ({ request }) => {
++    await deleteTestProject(request)
++    await logout(adminPage)
++  })
++
++  test('lists spaces and exports a markdown report', async () => {
++    await adminPage.goto('/space-report')
++    const view = adminPage.getByTestId('space-report-view')
++    await expect(view).toBeVisible()
++    await expect(adminPage.getByTestId('space-report-tile-personal')).toBeVisible()
++    await expect(
++      adminPage.getByTestId('space-report-row').filter({ hasText: PROJECT })
++    ).toBeVisible()
++
++    const downloadPromise = adminPage.waitForEvent('download')
++    await adminPage.getByTestId('space-report-markdown').click()
++    const download = await downloadPromise
++    expect(download.suggestedFilename()).toMatch(/^space-report-.*\.md$/)
++  })
++})
+diff --git a/packages/web-app-space-report/tests/unit/export.spec.ts b/packages/web-app-space-report/tests/unit/export.spec.ts
+new file mode 100644
+index 0000000..5863a83
+--- /dev/null
++++ b/packages/web-app-space-report/tests/unit/export.spec.ts
+@@ -0,0 +1,92 @@
++import { describe, it, expect } from 'vitest'
++import { buildMarkdown, reportFileName, ReportData } from '../../src/export'
++import { buildPdf } from '../../src/pdf'
++import { summarize, toRows } from '../../src/report'
++
++const GiB = 1024 ** 3
++const rows = toRows([
++  {
++    id: 'p1',
++    name: 'Jürgen | Müller',
++    driveType: 'personal',
++    owner: { user: { displayName: 'Jürgen Müller' } },
++    quota: { total: 10 * GiB, used: 9.5 * GiB }
++  },
++  { id: 'p2', name: 'Bob', driveType: 'personal', quota: { used: 1 * GiB } },
++  {
++    id: 's1',
++    name: 'Projekt – X',
++    driveType: 'project',
++    quota: { total: 100 * GiB, used: 20 * GiB },
++    lastModifiedDateTime: '2026-09-30T10:00:00Z'
++  }
++])
++
++const data = (over: Partial<ReportData['meta']> = {}): ReportData => ({
++  meta: {
++    server: 'cloud.example.org',
++    generatedAt: new Date('2026-10-04T17:00:00Z'),
++    generatedBy: 'Sami',
++    thresholdPercent: 90,
++    vault: 'disabled',
++    complete: true,
++    ...over
++  },
++  summary: summarize(rows, 0.9),
++  rows
++})
++
++describe('buildMarkdown', () => {
++  it('contains overview, top lists and all spaces, with escaped pipes', () => {
++    const md = buildMarkdown(data())
++    expect(md).toContain('# Space report – cloud.example.org')
++    expect(md).toContain('| Personal | 2 | 10.5 GB | 10.0 GB (+1 unlimited) |')
++    expect(md).toContain('| Total | 3 | 30.5 GB | 110.0 GB |')
++    expect(md).toContain('| Spaces >= 90 % full | 1 |')
++    expect(md).toContain('Jürgen \\| Müller')
++    expect(md).toContain('## All spaces (3)')
++    expect(md).not.toContain('Vault personal')
++  })
++
++  it('states what is missing', () => {
++    const md = buildMarkdown(data({ complete: false, vault: 'mfa-required' }))
++    expect(md).toContain("> Other users' personal spaces were not visible")
++    expect(md).toContain('> Vault spaces are not included')
++  })
++
++  it('builds a file name per server and day', () => {
++    expect(reportFileName(data().meta, 'pdf')).toBe('space-report-cloud.example.org-2026-10-04.pdf')
++  })
++})
++
++describe('orphans in exports', () => {
++  it('adds key figures and the orphan table when the check ran', () => {
++    const orphaned = rows.map((r) =>
++      r.id === 'p2' ? { ...r, orphan: 'owner-missing' as const } : { ...r, orphan: null }
++    )
++    const md = buildMarkdown({ ...data({ orphans: 'ok' }), rows: orphaned })
++    expect(md).toContain('| Orphaned spaces | 1 |')
++    expect(md).toContain('| Storage in orphaned spaces | 1.0 GB |')
++    expect(md).toContain('## Orphaned spaces (1)')
++    expect(md).toContain('| Personal | Bob | Owner no longer exists | 1.0 GB | - |')
++    expect(md).toContain('Bob [orphaned]')
++  })
++
++  it('says why the check is missing otherwise', () => {
++    expect(buildMarkdown(data({ orphans: 'skipped' }))).toContain(
++      '> Orphaned spaces were not checked (requires the Admin role).'
++    )
++    expect(buildMarkdown(data({ orphans: 'skipped' }))).not.toContain('## Orphaned spaces')
++  })
++})
++
++describe('buildPdf', () => {
++  it('produces a multi-page PDF', async () => {
++    const blob = buildPdf(data())
++    const bytes = new Uint8Array(await blob.arrayBuffer())
++    const text = new TextDecoder('latin1').decode(bytes)
++    expect(text.startsWith('%PDF-')).toBe(true)
++    expect((text.match(/\/Type \/Page\b/g) || []).length).toBeGreaterThanOrEqual(2)
++    expect(blob.size).toBeGreaterThan(3000)
++  })
++})
+diff --git a/packages/web-app-space-report/tests/unit/orphans.spec.ts b/packages/web-app-space-report/tests/unit/orphans.spec.ts
+new file mode 100644
+index 0000000..558aa64
+--- /dev/null
++++ b/packages/web-app-space-report/tests/unit/orphans.spec.ts
+@@ -0,0 +1,150 @@
++import { describe, it, expect, vi } from 'vitest'
++import { analyzeOrphans, summarizeOrphans } from '../../src/orphans'
++import { GraphDrive, MANAGER_ROLES, toRows } from '../../src/report'
++
++const MANAGER = MANAGER_ROLES[0]
++const EDITOR = '58c63c02-1d89-4572-916a-870abc5a1b7d'
++const GiB = 1024 ** 3
++
++const perm = (type: 'user' | 'group', id: string, role = EDITOR) => ({
++  roles: [role],
++  grantedToV2: { [type]: { id } }
++})
++
++const drives: GraphDrive[] = [
++  // personal: owner exists / deleted / deleted-but-listing-truncated / disabled
++  { id: 'p-ok', name: 'Alice', driveType: 'personal', owner: { user: { id: 'alice' } } },
++  {
++    id: 'p-gone',
++    name: 'Bob',
++    driveType: 'personal',
++    owner: { user: { id: 'bob' } },
++    quota: { used: 5 * GiB }
++  },
++  { id: 'p-trunc', name: 'Carol', driveType: 'personal', owner: { user: { id: 'carol' } } },
++  { id: 'p-dis', name: 'Dave', driveType: 'personal', owner: { user: { id: 'dave' } } },
++  // projects
++  { id: 's-none', name: 'Empty', driveType: 'project', quota: { used: 2 * GiB } },
++  {
++    id: 's-gone',
++    name: 'Ghost',
++    driveType: 'project',
++    root: { permissions: [perm('user', 'bob', MANAGER), perm('group', 'deleted-group')] }
++  },
++  {
++    id: 's-emptygroup',
++    name: 'Hollow',
++    driveType: 'project',
++    root: { permissions: [perm('group', 'empty-group', MANAGER)] }
++  },
++  {
++    id: 's-ok',
++    name: 'Fine',
++    driveType: 'project',
++    root: { permissions: [perm('user', 'alice', MANAGER)] }
++  },
++  {
++    id: 's-nomgr',
++    name: 'Headless',
++    driveType: 'project',
++    root: { permissions: [perm('user', 'bob', MANAGER), perm('group', 'staff')] }
++  },
++  {
++    id: 's-unverified',
++    name: 'Unknown',
++    driveType: 'project',
++    root: { permissions: [perm('user', 'flaky', MANAGER)] }
++  }
++]
++
++const users = [{ id: 'alice' }, { id: 'dave', accountEnabled: false }] // carol missing: truncated list
++const groups = [
++  { id: 'staff', memberCount: 12 },
++  { id: 'empty-group', memberCount: 0 }
++]
++const existing = new Set(['carol'])
++
++const lookups = {
++  userExists: vi.fn((id: string) =>
++    id === 'flaky' ? Promise.reject(new Error('HTTP 500')) : Promise.resolve(existing.has(id))
++  ),
++  groupExists: vi.fn(() => Promise.resolve(false))
++}
++
++describe('analyzeOrphans', () => {
++  it('classifies every case and only trusts confirmed lookups', async () => {
++    const { rows, unverified } = await analyzeOrphans({
++      rows: toRows(drives),
++      users,
++      groups,
++      lookups
++    })
++    const by = Object.fromEntries(rows.map((r) => [r.id, r]))
++
++    expect(by['p-ok'].orphan).toBeNull()
++    expect(by['p-gone'].orphan).toBe('owner-missing')
++    expect(by['p-trunc'].orphan).toBeNull() // not in list, but direct lookup says it exists
++    expect(by['p-dis'].orphan).toBeNull()
++    expect(by['p-dis'].ownerDisabled).toBe(true)
++
++    expect(by['s-none'].orphan).toBe('no-members')
++    expect(by['s-gone'].orphan).toBe('members-gone')
++    expect(by['s-emptygroup'].orphan).toBe('members-gone')
++    expect(by['s-ok'].orphan).toBeNull()
++    expect(by['s-ok'].noManager).toBe(false)
++    expect(by['s-nomgr'].orphan).toBeNull()
++    expect(by['s-nomgr'].noManager).toBe(true)
++    expect(by['s-unverified'].orphan).toBeNull()
++    expect(by['s-unverified'].noManager).toBe(false)
++    expect(unverified).toBe(1)
++
++    // every unknown id is looked up exactly once
++    expect(lookups.userExists.mock.calls.map((c: any[]) => c[0]).sort()).toEqual([
++      'bob',
++      'carol',
++      'flaky'
++    ])
++    expect((lookups.groupExists.mock.calls as any[][]).map((c) => c[0])).toEqual(['deleted-group'])
++
++    const s = summarizeOrphans(rows)
++    expect(s).toMatchObject({
++      personalOwnerMissing: 1,
++      projectNoMembers: 1,
++      projectMembersGone: 2,
++      total: 4,
++      used: 7 * GiB,
++      ownerDisabled: 1,
++      noManager: 1
++    })
++  })
++
++  it('never marks group-based projects orphaned without a group listing', async () => {
++    const rows = toRows([
++      { id: 's', driveType: 'project', root: { permissions: [perm('group', 'x')] } }
++    ])
++    const res = await analyzeOrphans({ rows, users: [], groups: null, lookups })
++    expect(res.rows[0].orphan).toBeNull()
++  })
++
++  it('caps lookups and reports the rest as unverified', async () => {
++    const many = toRows(
++      Array.from({ length: 5 }, (_, i) => ({
++        id: `p${i}`,
++        driveType: 'personal',
++        owner: { user: { id: `u${i}` } }
++      }))
++    )
++    const res = await analyzeOrphans({
++      rows: many,
++      users: [],
++      groups: [],
++      lookups: {
++        userExists: () => Promise.resolve(false),
++        groupExists: () => Promise.resolve(false)
++      },
++      maxLookups: 2
++    })
++    expect(res.rows.filter((r) => r.orphan).length).toBe(2)
++    expect(res.unverified).toBe(3)
++  })
++})
+diff --git a/packages/web-app-space-report/tests/unit/report.spec.ts b/packages/web-app-space-report/tests/unit/report.spec.ts
+new file mode 100644
+index 0000000..8ec64d6
+--- /dev/null
++++ b/packages/web-app-space-report/tests/unit/report.spec.ts
+@@ -0,0 +1,120 @@
++import { describe, it, expect, vi, afterEach } from 'vitest'
++import { formatBytes, formatPercent, summarize, toCsv, toRows, GraphDrive } from '../../src/report'
++import { fetchDrives, GraphError } from '../../src/api'
++
++const GiB = 1024 ** 3
++
++const drives: GraphDrive[] = [
++  {
++    id: 'p1',
++    name: 'Alice',
++    driveType: 'personal',
++    owner: { user: { displayName: 'Alice A.' } },
++    quota: { total: 10 * GiB, used: 9.5 * GiB, state: 'nearing' }
++  },
++  { id: 'p2', name: 'Bob', driveType: 'personal', quota: { total: 0, used: 1 * GiB } },
++  { id: 'p2', name: 'Bob dup', driveType: 'personal', quota: { used: 5 } },
++  {
++    id: 's1',
++    name: 'Projekt X',
++    driveType: 'project',
++    quota: { total: 100 * GiB, used: 120 * GiB, state: 'exceeded' },
++    root: { deleted: { state: 'trashed' } }
++  },
++  { id: 'v1', name: 'Shares', driveType: 'virtual' },
++  { id: 'm1', name: 'mount', driveType: 'mountpoint' }
++]
++
++describe('toRows / summarize', () => {
++  const rows = toRows(drives)
++
++  it('keeps only personal and project spaces, deduped', () => {
++    expect(rows.map((r) => r.id)).toEqual(['p1', 'p2', 's1'])
++    expect(rows[0].owner).toBe('Alice A.')
++    expect(rows[1].quota).toBe(0)
++    expect(rows[1].ratio).toBeNull()
++    expect(rows[2].disabled).toBe(true)
++  })
++
++  it('aggregates per kind and in total', () => {
++    const s = summarize([...rows, ...toRows([drives[0]], true)], 0.9)
++    expect(s.byKind.personal.count).toBe(2)
++    expect(s.byKind.personal.unlimited).toBe(1)
++    expect(s.byKind.project.disabled).toBe(1)
++    expect(s.byKind['vault-personal'].count).toBe(1)
++    expect(s.total.count).toBe(4)
++    expect(s.total.used).toBe((9.5 + 1 + 120 + 9.5) * GiB)
++    expect(s.total.quotaAssigned).toBe((10 + 100 + 10) * GiB)
++    expect(s.total.overThreshold).toBe(3)
++    expect(s.total.exceeded).toBe(1)
++    expect(s.largest[0].id).toBe('s1')
++    expect(s.fullest.map((r) => r.id)).toEqual(['s1', 'p1', 'p1'])
++  })
++})
++
++describe('formatting', () => {
++  it('formats bytes and percent', () => {
++    expect(formatBytes(0)).toBe('0 B')
++    expect(formatBytes(1536)).toBe('1.5 KB')
++    expect(formatBytes(9.5 * GiB)).toBe('9.5 GB')
++    expect(formatPercent(null)).toBe('–')
++    expect(formatPercent(0.95)).toBe('95 %')
++    expect(formatPercent(0.012)).toBe('1.2 %')
++  })
++
++  it('writes CSV with quoting and formula neutralisation', () => {
++    const csv = toCsv(
++      toRows([{ id: 'x', name: '=HYPERLINK("evil")', driveType: 'project', quota: { used: 1 } }])
++    )
++    const [header, line] = csv.trim().split('\r\n')
++    expect(header).toContain('"used_bytes"')
++    expect(line).toContain(`"'=HYPERLINK(""evil"")"`)
++  })
++})
++
++describe('fetchDrives', () => {
++  afterEach(() => vi.unstubAllGlobals())
++
++  it('calls the all-drives endpoint with the filter and bearer token', async () => {
++    const fetchMock = vi
++      .fn()
++      .mockResolvedValue(new Response(JSON.stringify({ value: [drives[0]] }), { status: 200 }))
++    vi.stubGlobal('fetch', fetchMock)
++    const res = await fetchDrives({
++      serverUrl: 'https://cloud.example.org/',
++      accessToken: 'T',
++      driveType: 'personal',
++      vault: true
++    })
++    expect(res).toHaveLength(1)
++    const [url, init] = fetchMock.mock.calls[0]
++    expect(url).toBe(
++      'https://cloud.example.org/vault/graph/v1beta1/drives?%24filter=driveType+eq+personal&%24orderby=name+asc'
++    )
++    expect(init.headers.Authorization).toBe('Bearer T')
++  })
++
++  it('handles `null` bodies and flags MFA-required errors', async () => {
++    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('null', { status: 200 })))
++    expect(
++      await fetchDrives({ serverUrl: 'https://c/', accessToken: 'T', driveType: 'project' })
++    ).toEqual([])
++
++    vi.stubGlobal(
++      'fetch',
++      vi
++        .fn()
++        .mockResolvedValue(
++          new Response('', { status: 403, headers: { 'X-OCIS-MFA-Required': 'true' } })
++        )
++    )
++    const err = await fetchDrives({
++      serverUrl: 'https://c/',
++      accessToken: 'T',
++      driveType: 'project',
++      vault: true
++    }).catch((e) => e)
++    expect(err).toBeInstanceOf(GraphError)
++    expect(err.mfaRequired).toBe(true)
++  })
++})
+diff --git a/packages/web-app-space-report/tests/unit/save.spec.ts b/packages/web-app-space-report/tests/unit/save.spec.ts
+new file mode 100644
+index 0000000..0c2fa7b
+--- /dev/null
++++ b/packages/web-app-space-report/tests/unit/save.spec.ts
+@@ -0,0 +1,66 @@
++import { describe, it, expect, vi } from 'vitest'
++import { normalizeFolder, saveToSpace, withTime } from '../../src/save'
++
++const space = { id: 'personal' } as any
++const err = (statusCode: number) => Object.assign(new Error(`HTTP ${statusCode}`), { statusCode })
++
++describe('helpers', () => {
++  it('normalizes folders and blocks traversal', () => {
++    expect(normalizeFolder(' /Reports//2026/ ')).toBe('Reports/2026')
++    expect(normalizeFolder('../../x')).toBe('x')
++    expect(normalizeFolder('')).toBe('')
++  })
++  it('adds the time before the extension', () => {
++    expect(withTime('space-report-a-2026-10-04.pdf', new Date(2026, 9, 4, 9, 5))).toBe(
++      'space-report-a-2026-10-04-0905.pdf'
++    )
++  })
++})
++
++describe('saveToSpace', () => {
++  it('creates each folder level (ignoring existing ones) and uploads without overwrite', async () => {
++    const webdav = {
++      createFolder: vi.fn().mockRejectedValueOnce(err(405)).mockResolvedValue(undefined),
++      putFileContents: vi.fn().mockResolvedValue(undefined)
++    }
++    const path = await saveToSpace({
++      webdav,
++      space,
++      folder: 'Reports/Spaces',
++      fileName: 'r.pdf',
++      content: 'x'
++    })
++    expect(path).toBe('/Reports/Spaces/r.pdf')
++    expect(webdav.createFolder.mock.calls.map((c) => c[1].path)).toEqual([
++      '/Reports',
++      '/Reports/Spaces'
++    ])
++    expect(webdav.putFileContents).toHaveBeenCalledWith(space, {
++      path: '/Reports/Spaces/r.pdf',
++      content: 'x',
++      overwrite: false
++    })
++  })
++
++  it('picks a new name when the file exists (412)', async () => {
++    const webdav = {
++      createFolder: vi.fn().mockResolvedValue(undefined),
++      putFileContents: vi.fn().mockRejectedValueOnce(err(412)).mockResolvedValue(undefined)
++    }
++    expect(await saveToSpace({ webdav, space, folder: '', fileName: 'r.md', content: 'x' })).toBe(
++      '/r (2).md'
++    )
++    expect(webdav.createFolder).not.toHaveBeenCalled()
++  })
++
++  it('surfaces other errors', async () => {
++    const webdav = {
++      createFolder: vi.fn().mockRejectedValue(err(403)),
++      putFileContents: vi.fn()
++    }
++    await expect(
++      saveToSpace({ webdav, space, folder: 'A', fileName: 'r.md', content: 'x' })
++    ).rejects.toThrow('HTTP 403')
++    expect(webdav.putFileContents).not.toHaveBeenCalled()
++  })
++})
+diff --git a/packages/web-app-space-report/tsconfig.json b/packages/web-app-space-report/tsconfig.json
+new file mode 100644
+index 0000000..acddc69
+--- /dev/null
++++ b/packages/web-app-space-report/tsconfig.json
+@@ -0,0 +1,6 @@
++{
++  "extends": "@ownclouders/tsconfig",
++  "compilerOptions": {
++    "types": ["vitest/globals"]
++  }
++}
+diff --git a/packages/web-app-space-report/vite.config.ts b/packages/web-app-space-report/vite.config.ts
+new file mode 100644
+index 0000000..128c5de
+--- /dev/null
++++ b/packages/web-app-space-report/vite.config.ts
+@@ -0,0 +1,40 @@
++import { defineConfig } from '@ownclouders/extension-sdk'
++
++export default defineConfig({
++  name: 'web-app-space-report',
++  server: {
++    port: 9733
++  },
++  build: {
++    rollupOptions: {
++      // jsPDF loads these lazily only for doc.html()/SVG, which we don't use; keep them out
++      external: [
++        'vue',
++        'luxon',
++        'pinia',
++        'vue3-gettext',
++        '@ownclouders/web-client',
++        '@ownclouders/web-client/graph',
++        '@ownclouders/web-client/graph/generated',
++        '@ownclouders/web-client/ocs',
++        '@ownclouders/web-client/sse',
++        '@ownclouders/web-client/webdav',
++        '@ownclouders/web-pkg',
++        'web-client',
++        'web-pkg',
++        'html2canvas',
++        'dompurify',
++        'canvg'
++      ],
++      output: {
++        // one file: Web loads extensions via requirejs, lazy chunks would need extra path config
++        inlineDynamicImports: true,
++        entryFileNames: 'space-report.js'
++      }
++    }
++  },
++  test: {
++    environment: 'happy-dom',
++    exclude: ['**/e2e/**']
++  }
++})
+-- 
+2.43.0
+

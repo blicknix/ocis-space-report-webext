@@ -3,7 +3,10 @@ import type { SpaceResource } from '@ownclouders/web-client'
 
 /** Subset of clientService.webdav used here (keeps this module testable). */
 export interface WebDavSubset {
-  createFolder(space: SpaceResource, opts: { path: string; fetchFolder?: boolean }): Promise<unknown>
+  createFolder(
+    space: SpaceResource,
+    opts: { path: string; fetchFolder?: boolean }
+  ): Promise<unknown>
   putFileContents(
     space: SpaceResource,
     opts: { path: string; content: string | ArrayBuffer; overwrite?: boolean }

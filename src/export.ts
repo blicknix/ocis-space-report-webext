@@ -30,8 +30,7 @@ const KIND_LABEL: Record<SpaceKind, string> = {
 }
 
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
-export const dateTime = (d: Date) =>
-  `${isoDate(d)} ${d.toTimeString().slice(0, 5)}`
+export const dateTime = (d: Date) => `${isoDate(d)} ${d.toTimeString().slice(0, 5)}`
 const shortDate = (s: string | null) => (s ? isoDate(new Date(s)) : '-')
 
 export const reportFileName = (meta: ReportMeta, ext: 'md' | 'pdf') =>
@@ -40,8 +39,13 @@ export const reportFileName = (meta: ReportMeta, ext: 'md' | 'pdf') =>
 /** Shared content model so Markdown and PDF always say the same thing. */
 export function sections({ meta, summary, rows }: ReportData) {
   const { byKind, total } = summary
-  const personalUsed = rows.filter((r) => r.kind === 'personal').map((r) => r.used).sort((a, b) => a - b)
-  const avg = personalUsed.length ? personalUsed.reduce((a, b) => a + b, 0) / personalUsed.length : 0
+  const personalUsed = rows
+    .filter((r) => r.kind === 'personal')
+    .map((r) => r.used)
+    .sort((a, b) => a - b)
+  const avg = personalUsed.length
+    ? personalUsed.reduce((a, b) => a + b, 0) / personalUsed.length
+    : 0
   const mid = Math.floor(personalUsed.length / 2)
   const median = !personalUsed.length
     ? 0
@@ -51,9 +55,12 @@ export function sections({ meta, summary, rows }: ReportData) {
 
   const notes: string[] = []
   if (!meta.complete) {
-    notes.push("Other users' personal spaces were not visible to the generating account; personal numbers are incomplete.")
+    notes.push(
+      "Other users' personal spaces were not visible to the generating account; personal numbers are incomplete."
+    )
   }
-  if (meta.vault === 'mfa-required') notes.push('Vault spaces are not included (listing them requires an MFA session).')
+  if (meta.vault === 'mfa-required')
+    notes.push('Vault spaces are not included (listing them requires an MFA session).')
   if (meta.vault === 'error') notes.push('Vault spaces could not be loaded and are not included.')
   notes.push('"Used" is the usage oCIS reports against each space quota, not raw backend storage.')
 
@@ -65,7 +72,8 @@ export function sections({ meta, summary, rows }: ReportData) {
         KIND_LABEL[k] + (byKind[k].disabled ? ` (${byKind[k].disabled} disabled)` : ''),
         String(byKind[k].count),
         formatBytes(byKind[k].used),
-        formatBytes(byKind[k].quotaAssigned) + (byKind[k].unlimited ? ` (+${byKind[k].unlimited} unlimited)` : '')
+        formatBytes(byKind[k].quotaAssigned) +
+          (byKind[k].unlimited ? ` (+${byKind[k].unlimited} unlimited)` : '')
       ]),
     ['Total', String(total.count), formatBytes(total.used), formatBytes(total.quotaAssigned)]
   ]
@@ -113,7 +121,12 @@ export function sections({ meta, summary, rows }: ReportData) {
       shortDate(r.lastModified)
     ])
 
-  const largest = summary.largest.map((r, i) => [String(i + 1), r.name, KIND_LABEL[r.kind], formatBytes(r.used)])
+  const largest = summary.largest.map((r, i) => [
+    String(i + 1),
+    r.name,
+    KIND_LABEL[r.kind],
+    formatBytes(r.used)
+  ])
   const fullest = summary.fullest.map((r, i) => [
     String(i + 1),
     r.name,
@@ -125,7 +138,9 @@ export function sections({ meta, summary, rows }: ReportData) {
     .sort((a, b) => b.used - a.used)
     .map((r) => [
       KIND_LABEL[r.kind],
-      r.name + (r.disabled ? ' (disabled)' : '') + (r.orphan ? ' [orphaned]' : r.noManager ? ' [no manager]' : ''),
+      r.name +
+        (r.disabled ? ' (disabled)' : '') +
+        (r.orphan ? ' [orphaned]' : r.noManager ? ' [no manager]' : ''),
       r.owner,
       formatBytes(r.used),
       r.quota ? formatBytes(r.quota) : 'unlimited',
@@ -188,7 +203,11 @@ export function buildMarkdown(data: ReportData): string {
       : []),
     `## All spaces (${s.all.length})`,
     '',
-    mdTable(['Type', 'Name', 'Owner', 'Used', 'Quota', 'Full', 'Last modified'], s.all, [3, 4, 5, 6]),
+    mdTable(
+      ['Type', 'Name', 'Owner', 'Used', 'Quota', 'Full', 'Last modified'],
+      s.all,
+      [3, 4, 5, 6]
+    ),
     ''
   ]
   return out.join('\n')

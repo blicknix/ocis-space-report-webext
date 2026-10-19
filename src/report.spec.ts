@@ -101,9 +101,11 @@ describe('fetchDrives', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response('', { status: 403, headers: { 'X-OCIS-MFA-Required': 'true' } })
-      )
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response('', { status: 403, headers: { 'X-OCIS-MFA-Required': 'true' } })
+        )
     )
     const err = await fetchDrives({
       serverUrl: 'https://c/',

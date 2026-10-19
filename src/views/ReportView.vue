@@ -1,5 +1,5 @@
 <template>
-  <main id="space-report" class="space-report oc-p-m">
+  <main id="space-report" class="space-report oc-p-m" data-testid="space-report-view">
     <header class="space-report-header oc-mb-m">
       <div>
         <h1 class="oc-m-rm">{{ $gettext('Space report') }}</h1>
@@ -14,10 +14,17 @@
         <oc-button :disabled="loading" @click="load">
           <oc-icon name="refresh" size="small" />{{ $gettext('Refresh') }}
         </oc-button>
-        <oc-button :disabled="!rows.length || exporting || orphanStatus === 'running'" @click="downloadPdf">
+        <oc-button
+          :disabled="!rows.length || exporting || orphanStatus === 'running'"
+          @click="downloadPdf"
+        >
           <oc-icon name="file-pdf" size="small" />PDF
         </oc-button>
-        <oc-button :disabled="!rows.length || orphanStatus === 'running'" @click="downloadMarkdown">
+        <oc-button
+          data-testid="space-report-markdown"
+          :disabled="!rows.length || orphanStatus === 'running'"
+          @click="downloadMarkdown"
+        >
           <oc-icon name="markdown" size="small" />Markdown
         </oc-button>
         <oc-button
@@ -25,7 +32,9 @@
           v-oc-tooltip="personalSpace ? '' : $gettext('You have no personal space to save into')"
           :disabled="!rows.length || saving || !personalSpace || orphanStatus === 'running'"
         >
-          <oc-icon :name="saving ? 'loader-4' : 'save'" size="small" />{{ $gettext('Save to my files') }}
+          <oc-icon :name="saving ? 'loader-4' : 'save'" size="small" />{{
+            $gettext('Save to my files')
+          }}
         </oc-button>
         <oc-drop
           drop-id="space-report-save-drop"
@@ -87,12 +96,14 @@
     <template v-if="rows.length || (!loading && !error)">
       <!-- summary tiles -->
       <section class="space-report-tiles oc-mb-l">
-        <div class="space-report-tile">
+        <div class="space-report-tile" data-testid="space-report-tile-personal">
           <div class="space-report-tile-label">{{ $gettext('Personal spaces') }}</div>
           <div class="space-report-tile-value">{{ summary.byKind.personal.count }}</div>
-          <div class="space-report-tile-sub">{{ formatBytes(summary.byKind.personal.used) }} {{ $gettext('used') }}</div>
+          <div class="space-report-tile-sub">
+            {{ formatBytes(summary.byKind.personal.used) }} {{ $gettext('used') }}
+          </div>
         </div>
-        <div class="space-report-tile">
+        <div class="space-report-tile" data-testid="space-report-tile-project">
           <div class="space-report-tile-label">{{ $gettext('Project spaces') }}</div>
           <div class="space-report-tile-value">{{ summary.byKind.project.count }}</div>
           <div class="space-report-tile-sub">
@@ -105,19 +116,28 @@
         <div v-if="vaultStatus === 'ok'" class="space-report-tile">
           <div class="space-report-tile-label">{{ $gettext('Vault spaces') }}</div>
           <div class="space-report-tile-value">{{ vaultCount }}</div>
-          <div class="space-report-tile-sub">{{ formatBytes(vaultUsed) }} {{ $gettext('used') }}</div>
+          <div class="space-report-tile-sub">
+            {{ formatBytes(vaultUsed) }} {{ $gettext('used') }}
+          </div>
         </div>
         <div class="space-report-tile">
           <div class="space-report-tile-label">{{ $gettext('Total used') }}</div>
           <div class="space-report-tile-value">{{ formatBytes(summary.total.used) }}</div>
           <div class="space-report-tile-sub">
-            {{ $gettext('%{quota} quota assigned', { quota: formatBytes(summary.total.quotaAssigned) }) }}
+            {{
+              $gettext('%{quota} quota assigned', {
+                quota: formatBytes(summary.total.quotaAssigned)
+              })
+            }}
             <template v-if="summary.total.unlimited">
               · {{ $gettext('%{n} unlimited', { n: String(summary.total.unlimited) }) }}
             </template>
           </div>
         </div>
-        <div class="space-report-tile" :class="{ 'space-report-tile-warn': summary.total.overThreshold }">
+        <div
+          class="space-report-tile"
+          :class="{ 'space-report-tile-warn': summary.total.overThreshold }"
+        >
           <div class="space-report-tile-label">
             {{ $gettext('≥ %{p} % full', { p: String(thresholdPercent) }) }}
           </div>
@@ -145,12 +165,20 @@
           </template>
           <template v-else>
             <div class="space-report-tile-value">
-              <oc-spinner v-if="orphanStatus === 'running' || orphanStatus === 'pending'" size="small" :aria-label="$gettext('Checking')" />
+              <oc-spinner
+                v-if="orphanStatus === 'running' || orphanStatus === 'pending'"
+                size="small"
+                :aria-label="$gettext('Checking')"
+              />
               <span v-else>–</span>
             </div>
             <div class="space-report-tile-sub">
-              <template v-if="orphanStatus === 'skipped'">{{ $gettext('needs the Admin role') }}</template>
-              <template v-else-if="orphanStatus === 'error'">{{ $gettext('check failed') }}</template>
+              <template v-if="orphanStatus === 'skipped'">{{
+                $gettext('needs the Admin role')
+              }}</template>
+              <template v-else-if="orphanStatus === 'error'">{{
+                $gettext('check failed')
+              }}</template>
               <template v-else>{{ $gettext('checking users and groups…') }}</template>
             </div>
           </template>
@@ -158,7 +186,9 @@
         <div class="space-report-tile">
           <div class="space-report-tile-label">{{ $gettext('Avg. per personal space') }}</div>
           <div class="space-report-tile-value">{{ formatBytes(avgPersonal) }}</div>
-          <div class="space-report-tile-sub">{{ $gettext('median %{m}', { m: formatBytes(medianPersonal) }) }}</div>
+          <div class="space-report-tile-sub">
+            {{ $gettext('median %{m}', { m: formatBytes(medianPersonal) }) }}
+          </div>
         </div>
       </section>
 
@@ -186,7 +216,8 @@
               <div class="space-report-bar-label">
                 <span class="oc-text-truncate">{{ r.name }}</span>
                 <span class="space-report-num">
-                  {{ formatPercent(r.ratio) }} · {{ formatBytes(r.used) }} / {{ formatBytes(r.quota) }}
+                  {{ formatPercent(r.ratio) }} · {{ formatBytes(r.used) }} /
+                  {{ formatBytes(r.quota) }}
                 </span>
               </div>
               <div class="space-report-bar-track">
@@ -229,11 +260,15 @@
               <td>{{ kindLabel(r.kind) }}</td>
               <td>
                 {{ r.name }}
-                <span v-if="r.disabled" class="oc-text-small oc-text-muted">({{ $gettext('disabled') }})</span>
+                <span v-if="r.disabled" class="oc-text-small oc-text-muted"
+                  >({{ $gettext('disabled') }})</span
+                >
               </td>
               <td>{{ orphanLabel(r) }}</td>
               <td class="space-report-num">{{ formatBytes(r.used) }}</td>
-              <td class="space-report-num">{{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}</td>
+              <td class="space-report-num">
+                {{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}
+              </td>
             </tr>
           </tbody>
           <tfoot>
@@ -247,16 +282,27 @@
         <p v-else class="oc-text-muted">{{ $gettext('No orphaned spaces found.') }}</p>
         <ul class="oc-text-small space-report-hints">
           <li v-if="orphanSummary.noManager">
-            {{ $gettext('%{n} project spaces have members but no manager.', { n: String(orphanSummary.noManager) }) }}
+            {{
+              $gettext('%{n} project spaces have members but no manager.', {
+                n: String(orphanSummary.noManager)
+              })
+            }}
           </li>
           <li v-if="orphanSummary.ownerDisabled">
-            {{ $gettext('%{n} personal spaces belong to disabled accounts.', { n: String(orphanSummary.ownerDisabled) }) }}
+            {{
+              $gettext('%{n} personal spaces belong to disabled accounts.', {
+                n: String(orphanSummary.ownerDisabled)
+              })
+            }}
           </li>
           <li v-if="orphanUnverified">
             {{
-              $gettext('%{n} users/groups could not be verified; spaces depending on them are not counted as orphaned.', {
-                n: String(orphanUnverified)
-              })
+              $gettext(
+                '%{n} users/groups could not be verified; spaces depending on them are not counted as orphaned.',
+                {
+                  n: String(orphanUnverified)
+                }
+              )
             }}
           </li>
         </ul>
@@ -296,21 +342,37 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in visibleRows" :key="r.kind + r.id" :class="{ 'space-report-row-disabled': r.disabled }">
+            <tr
+              v-for="r in visibleRows"
+              :key="r.kind + r.id"
+              data-testid="space-report-row"
+              :class="{ 'space-report-row-disabled': r.disabled }"
+            >
               <td>{{ kindLabel(r.kind) }}</td>
               <td>
                 {{ r.name }}
-                <span v-if="r.disabled" class="oc-text-small oc-text-muted">({{ $gettext('disabled') }})</span>
+                <span v-if="r.disabled" class="oc-text-small oc-text-muted"
+                  >({{ $gettext('disabled') }})</span
+                >
                 <span v-if="r.orphan" class="space-report-badge">{{ $gettext('orphaned') }}</span>
-                <span v-else-if="r.noManager" class="space-report-badge space-report-badge-soft">{{ $gettext('no manager') }}</span>
+                <span v-else-if="r.noManager" class="space-report-badge space-report-badge-soft">{{
+                  $gettext('no manager')
+                }}</span>
               </td>
               <td>{{ r.owner }}</td>
               <td class="space-report-num">{{ formatBytes(r.used) }}</td>
-              <td class="space-report-num">{{ r.quota ? formatBytes(r.quota) : $gettext('unlimited') }}</td>
-              <td class="space-report-num" :class="{ 'space-report-warn-text': r.ratio !== null && r.ratio >= threshold }">
+              <td class="space-report-num">
+                {{ r.quota ? formatBytes(r.quota) : $gettext('unlimited') }}
+              </td>
+              <td
+                class="space-report-num"
+                :class="{ 'space-report-warn-text': r.ratio !== null && r.ratio >= threshold }"
+              >
                 {{ formatPercent(r.ratio) }}
               </td>
-              <td class="space-report-num">{{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}</td>
+              <td class="space-report-num">
+                {{ r.lastModified ? new Date(r.lastModified).toLocaleDateString() : '–' }}
+              </td>
             </tr>
             <tr v-if="!filteredRows.length">
               <td colspan="7" class="oc-text-muted">{{ $gettext('No spaces match.') }}</td>
@@ -326,7 +388,11 @@
         </table>
         <div v-if="filteredRows.length > visibleRows.length" class="oc-mt-s no-print">
           <oc-button size="small" @click="limit += 200">
-            {{ $gettext('Show more (%{n} left)', { n: String(filteredRows.length - visibleRows.length) }) }}
+            {{
+              $gettext('Show more (%{n} left)', {
+                n: String(filteredRows.length - visibleRows.length)
+              })
+            }}
           </oc-button>
         </div>
       </section>
@@ -600,7 +666,10 @@ const filteredUsed = computed(() => unref(filteredRows).reduce((a, r) => a + r.u
 
 const downloadCsv = () => {
   const blob = new Blob([toCsv(unref(filteredRows))], { type: 'text/csv;charset=utf-8' })
-  downloadBlob(blob, `space-report-${serverHost.value}-${new Date().toISOString().slice(0, 10)}.csv`)
+  downloadBlob(
+    blob,
+    `space-report-${serverHost.value}-${new Date().toISOString().slice(0, 10)}.csv`
+  )
 }
 
 /** Markdown/PDF always cover all spaces (not the current filter), like a status report should. */

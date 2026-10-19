@@ -1,0 +1,32 @@
+# Local test environment for the space-report extension.
+#   npm run build            (or: npm run build:w  for rebuild-on-save)
+#   docker compose -f dev/docker-compose.yml up -d
+#   open https://localhost:9200  (self-signed cert)  ->  admin / admin
+services:
+  ocis:
+    image: ${OCIS_IMAGE:-owncloud/ocis:latest}
+    container_name: ocis-space-report-dev
+    entrypoint: /bin/sh
+    command: ['-c', 'ocis init || true; ocis server']
+    ports:
+      - '9200:9200'
+    environment:
+      OCIS_URL: https://localhost:9200
+      OCIS_INSECURE: 'true'
+      OCIS_LOG_LEVEL: warn
+      IDM_ADMIN_PASSWORD: admin
+      IDM_CREATE_DEMO_USERS: 'true'      # einstein/relativity, marie/radioactivity, ...
+      PROXY_ENABLE_BASIC_AUTH: 'true'    # lets dev/seed.sh use curl -u
+      WEB_ASSET_APPS_PATH: /web/apps
+      WEB_CACHE_TTL: '0'                 # no stale bundle after a rebuild
+      # uncomment to test Vault mode (oCIS >= 8.1)
+      # OCIS_ENABLE_VAULT_MODE: 'true'
+      # FRONTEND_ENABLE_VAULT_MODE: 'true'
+    volumes:
+      - ocis-config:/etc/ocis
+      - ocis-data:/var/lib/ocis
+      - ./apps.yaml:/etc/ocis/apps.yaml:ro
+      - ../dist:/web/apps/space-report:ro
+volumes:
+  ocis-config:
+  ocis-data:

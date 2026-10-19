@@ -22,10 +22,23 @@ describe('saveToSpace', () => {
       createFolder: vi.fn().mockRejectedValueOnce(err(405)).mockResolvedValue(undefined),
       putFileContents: vi.fn().mockResolvedValue(undefined)
     }
-    const path = await saveToSpace({ webdav, space, folder: 'Reports/Spaces', fileName: 'r.pdf', content: 'x' })
+    const path = await saveToSpace({
+      webdav,
+      space,
+      folder: 'Reports/Spaces',
+      fileName: 'r.pdf',
+      content: 'x'
+    })
     expect(path).toBe('/Reports/Spaces/r.pdf')
-    expect(webdav.createFolder.mock.calls.map((c) => c[1].path)).toEqual(['/Reports', '/Reports/Spaces'])
-    expect(webdav.putFileContents).toHaveBeenCalledWith(space, { path: '/Reports/Spaces/r.pdf', content: 'x', overwrite: false })
+    expect(webdav.createFolder.mock.calls.map((c) => c[1].path)).toEqual([
+      '/Reports',
+      '/Reports/Spaces'
+    ])
+    expect(webdav.putFileContents).toHaveBeenCalledWith(space, {
+      path: '/Reports/Spaces/r.pdf',
+      content: 'x',
+      overwrite: false
+    })
   })
 
   it('picks a new name when the file exists (412)', async () => {
@@ -33,7 +46,9 @@ describe('saveToSpace', () => {
       createFolder: vi.fn().mockResolvedValue(undefined),
       putFileContents: vi.fn().mockRejectedValueOnce(err(412)).mockResolvedValue(undefined)
     }
-    expect(await saveToSpace({ webdav, space, folder: '', fileName: 'r.md', content: 'x' })).toBe('/r (2).md')
+    expect(await saveToSpace({ webdav, space, folder: '', fileName: 'r.md', content: 'x' })).toBe(
+      '/r (2).md'
+    )
     expect(webdav.createFolder).not.toHaveBeenCalled()
   })
 
@@ -42,7 +57,9 @@ describe('saveToSpace', () => {
       createFolder: vi.fn().mockRejectedValue(err(403)),
       putFileContents: vi.fn()
     }
-    await expect(saveToSpace({ webdav, space, folder: 'A', fileName: 'r.md', content: 'x' })).rejects.toThrow('HTTP 403')
+    await expect(
+      saveToSpace({ webdav, space, folder: 'A', fileName: 'r.md', content: 'x' })
+    ).rejects.toThrow('HTTP 403')
     expect(webdav.putFileContents).not.toHaveBeenCalled()
   })
 })

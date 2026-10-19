@@ -39,7 +39,11 @@ export async function fetchDrives({
   })
   if (!res.ok) {
     const mfa = res.headers.has('x-ocis-mfa-required')
-    throw new GraphError(res.status, `Listing ${vault ? 'vault ' : ''}${driveType} spaces failed: HTTP ${res.status}`, mfa)
+    throw new GraphError(
+      res.status,
+      `Listing ${vault ? 'vault ' : ''}${driveType} spaces failed: HTTP ${res.status}`,
+      mfa
+    )
   }
   const body = await res.json().catch(() => null)
   // oCIS answers `null` when there are no spaces at all
@@ -48,7 +52,7 @@ export async function fetchDrives({
 
 // ---- directory (users / groups), for the orphan analysis -------------------------------------
 
-async function graphGet(serverUrl: string, accessToken: string, path: string, signal?: AbortSignal) {
+function graphGet(serverUrl: string, accessToken: string, path: string, signal?: AbortSignal) {
   return fetch(`${serverUrl.replace(/\/+$/, '')}/graph/v1.0/${path}`, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     credentials: 'omit',
@@ -60,7 +64,9 @@ export async function fetchUsers(serverUrl: string, accessToken: string, signal?
   const res = await graphGet(serverUrl, accessToken, 'users', signal)
   if (!res.ok) throw new GraphError(res.status, `Listing users failed: HTTP ${res.status}`)
   const body = await res.json().catch(() => null)
-  const value: Array<{ id?: string; accountEnabled?: boolean }> = Array.isArray(body?.value) ? body.value : []
+  const value: Array<{ id?: string; accountEnabled?: boolean }> = Array.isArray(body?.value)
+    ? body.value
+    : []
   return value
     .filter((u) => typeof u.id === 'string' && u.id)
     .map((u) => ({ id: u.id as string, accountEnabled: u.accountEnabled }))
@@ -70,7 +76,9 @@ export async function fetchGroups(serverUrl: string, accessToken: string, signal
   const res = await graphGet(serverUrl, accessToken, 'groups?$expand=members', signal)
   if (!res.ok) throw new GraphError(res.status, `Listing groups failed: HTTP ${res.status}`)
   const body = await res.json().catch(() => null)
-  const value: Array<{ id?: string; members?: unknown[] }> = Array.isArray(body?.value) ? body.value : []
+  const value: Array<{ id?: string; members?: unknown[] }> = Array.isArray(body?.value)
+    ? body.value
+    : []
   return value
     .filter((g) => typeof g.id === 'string' && g.id)
     .map((g) => ({

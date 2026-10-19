@@ -72,6 +72,34 @@ space-report:
     saveFolder: Space reports   # folder in the personal space for "Save to my files" ("" = root)
 ```
 
+## Test locally
+
+Needs Docker, Node 22+, `curl`, `jq`.
+
+```bash
+npm ci
+npm run build:w &                               # rebuilds dist/ on every save
+docker compose -f dev/docker-compose.yml up -d  # oCIS with dist/ mounted as /web/apps/space-report
+dev/seed.sh                                     # demo users' personal spaces, projects with quotas/data
+```
+
+- Open <https://localhost:9200> (self-signed certificate), log in as `admin` / `admin`, open **Space report** in the app switcher.
+- After a rebuild just reload the page (`WEB_CACHE_TTL=0` is set).
+- **Orphans:** `dev/make-orphan.sh einstein` deletes einstein directly in the built-in LDAP. That is what happens when a user is removed in Keycloak/LDAP. Refresh the report: einstein's personal space and the project "Einstein only" show up as orphaned. Deleting the user in Admin Settings instead would also delete the personal space, so it leaves no orphan.
+- **Vault:** uncomment the two `*_VAULT_MODE` variables in `dev/docker-compose.yml`.
+- Stop with `docker compose -f dev/docker-compose.yml down -v`.
+
+## Deploy with the oCIS Helm chart
+
+```bash
+npm ci && npm run build
+docker build -t registry.example.org/ocis/space-report:0.1.0 .
+docker push registry.example.org/ocis/space-report:0.1.0
+helm upgrade ocis owncloud/ocis -n ocis -f your-values.yaml -f deploy/values-space-report.yaml
+```
+
+`deploy/values-space-report.yaml` adds an init container to the web pods. It copies the extension into the chart's `apps` emptyDir (`/var/lib/ocis/web/assets/apps`) and sets the config via `services.web.config.externalApps`. No CSP changes are needed: the extension only calls oCIS itself.
+
 ## Development
 
 ```bash

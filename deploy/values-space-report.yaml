@@ -1,0 +1,28 @@
+# Merge into your oCIS Helm values (owncloud/ocis-charts, chart >= 0.8 / oCIS 8.x):
+#   helm upgrade ocis owncloud/ocis -n ocis -f values.yaml -f deploy/values-space-report.yaml
+#
+# The web pod serves extensions from /var/lib/ocis/web/assets/apps, an emptyDir named "apps"
+# that the chart creates. It is NOT on the web PVC, so the extension is copied in by an init
+# container on every pod start.
+services:
+  web:
+    config:
+      # rendered into apps.yaml (per-extension config)
+      externalApps:
+        space-report:
+          config:
+            thresholdPercent: 90
+            topN: 10
+            saveFolder: Space reports
+    additionalInitContainers:
+      - name: space-report
+        image: registry.example.org/ocis/space-report:0.1.0   # your registry (airgapped: internal mirror)
+        imagePullPolicy: IfNotPresent
+        command: ["cp", "-R", "/var/lib/nginx/html/space-report/", "/apps"]
+        volumeMounts:
+          - name: apps
+            mountPath: /apps
+        resources:
+          requests: { cpu: 10m, memory: 16Mi }
+          limits: { memory: 32Mi }
+# Private registry: pull secrets from the chart's image.pullSecrets also apply to init containers.

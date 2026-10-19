@@ -13,16 +13,47 @@ const perm = (type: 'user' | 'group', id: string, role = EDITOR) => ({
 const drives: GraphDrive[] = [
   // personal: owner exists / deleted / deleted-but-listing-truncated / disabled
   { id: 'p-ok', name: 'Alice', driveType: 'personal', owner: { user: { id: 'alice' } } },
-  { id: 'p-gone', name: 'Bob', driveType: 'personal', owner: { user: { id: 'bob' } }, quota: { used: 5 * GiB } },
+  {
+    id: 'p-gone',
+    name: 'Bob',
+    driveType: 'personal',
+    owner: { user: { id: 'bob' } },
+    quota: { used: 5 * GiB }
+  },
   { id: 'p-trunc', name: 'Carol', driveType: 'personal', owner: { user: { id: 'carol' } } },
   { id: 'p-dis', name: 'Dave', driveType: 'personal', owner: { user: { id: 'dave' } } },
   // projects
   { id: 's-none', name: 'Empty', driveType: 'project', quota: { used: 2 * GiB } },
-  { id: 's-gone', name: 'Ghost', driveType: 'project', root: { permissions: [perm('user', 'bob', MANAGER), perm('group', 'deleted-group')] } },
-  { id: 's-emptygroup', name: 'Hollow', driveType: 'project', root: { permissions: [perm('group', 'empty-group', MANAGER)] } },
-  { id: 's-ok', name: 'Fine', driveType: 'project', root: { permissions: [perm('user', 'alice', MANAGER)] } },
-  { id: 's-nomgr', name: 'Headless', driveType: 'project', root: { permissions: [perm('user', 'bob', MANAGER), perm('group', 'staff')] } },
-  { id: 's-unverified', name: 'Unknown', driveType: 'project', root: { permissions: [perm('user', 'flaky', MANAGER)] } }
+  {
+    id: 's-gone',
+    name: 'Ghost',
+    driveType: 'project',
+    root: { permissions: [perm('user', 'bob', MANAGER), perm('group', 'deleted-group')] }
+  },
+  {
+    id: 's-emptygroup',
+    name: 'Hollow',
+    driveType: 'project',
+    root: { permissions: [perm('group', 'empty-group', MANAGER)] }
+  },
+  {
+    id: 's-ok',
+    name: 'Fine',
+    driveType: 'project',
+    root: { permissions: [perm('user', 'alice', MANAGER)] }
+  },
+  {
+    id: 's-nomgr',
+    name: 'Headless',
+    driveType: 'project',
+    root: { permissions: [perm('user', 'bob', MANAGER), perm('group', 'staff')] }
+  },
+  {
+    id: 's-unverified',
+    name: 'Unknown',
+    driveType: 'project',
+    root: { permissions: [perm('user', 'flaky', MANAGER)] }
+  }
 ]
 
 const users = [{ id: 'alice' }, { id: 'dave', accountEnabled: false }] // carol missing: truncated list
@@ -33,16 +64,20 @@ const groups = [
 const existing = new Set(['carol'])
 
 const lookups = {
-  userExists: vi.fn(async (id: string) => {
-    if (id === 'flaky') throw new Error('HTTP 500')
-    return existing.has(id)
-  }),
-  groupExists: vi.fn(async () => false)
+  userExists: vi.fn((id: string) =>
+    id === 'flaky' ? Promise.reject(new Error('HTTP 500')) : Promise.resolve(existing.has(id))
+  ),
+  groupExists: vi.fn(() => Promise.resolve(false))
 }
 
 describe('analyzeOrphans', () => {
   it('classifies every case and only trusts confirmed lookups', async () => {
-    const { rows, unverified } = await analyzeOrphans({ rows: toRows(drives), users, groups, lookups })
+    const { rows, unverified } = await analyzeOrphans({
+      rows: toRows(drives),
+      users,
+      groups,
+      lookups
+    })
     const by = Object.fromEntries(rows.map((r) => [r.id, r]))
 
     expect(by['p-ok'].orphan).toBeNull()
@@ -63,7 +98,11 @@ describe('analyzeOrphans', () => {
     expect(unverified).toBe(1)
 
     // every unknown id is looked up exactly once
-    expect(lookups.userExists.mock.calls.map((c: any[]) => c[0]).sort()).toEqual(['bob', 'carol', 'flaky'])
+    expect(lookups.userExists.mock.calls.map((c: any[]) => c[0]).sort()).toEqual([
+      'bob',
+      'carol',
+      'flaky'
+    ])
     expect((lookups.groupExists.mock.calls as any[][]).map((c) => c[0])).toEqual(['deleted-group'])
 
     const s = summarizeOrphans(rows)
@@ -79,20 +118,29 @@ describe('analyzeOrphans', () => {
   })
 
   it('never marks group-based projects orphaned without a group listing', async () => {
-    const rows = toRows([{ id: 's', driveType: 'project', root: { permissions: [perm('group', 'x')] } }])
+    const rows = toRows([
+      { id: 's', driveType: 'project', root: { permissions: [perm('group', 'x')] } }
+    ])
     const res = await analyzeOrphans({ rows, users: [], groups: null, lookups })
     expect(res.rows[0].orphan).toBeNull()
   })
 
   it('caps lookups and reports the rest as unverified', async () => {
     const many = toRows(
-      Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, driveType: 'personal', owner: { user: { id: `u${i}` } } }))
+      Array.from({ length: 5 }, (_, i) => ({
+        id: `p${i}`,
+        driveType: 'personal',
+        owner: { user: { id: `u${i}` } }
+      }))
     )
     const res = await analyzeOrphans({
       rows: many,
       users: [],
       groups: [],
-      lookups: { userExists: async () => false, groupExists: async () => false },
+      lookups: {
+        userExists: () => Promise.resolve(false),
+        groupExists: () => Promise.resolve(false)
+      },
       maxLookups: 2
     })
     expect(res.rows.filter((r) => r.orphan).length).toBe(2)

@@ -1,0 +1,5 @@
+space-report:
+  config:
+    thresholdPercent: 80
+    topN: 10
+    saveFolder: Space reports

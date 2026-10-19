@@ -34,12 +34,10 @@ export function buildPdf(data: ReportData): Blob {
     const halign = c.table.styles?.columnStyles?.[c.column.index]?.halign
     if (halign) c.cell.styles.halign = halign
   }
-  const withHead =
-    (fn?: (c: any) => void) =>
-    (c: any) => {
-      alignHead(c)
-      fn?.(c)
-    }
+  const withHead = (fn?: (c: any) => void) => (c: any) => {
+    alignHead(c)
+    fn?.(c)
+  }
   const nextY = () => ((doc as any).lastAutoTable?.finalY ?? y) + 8
   const heading = (text: string) => {
     if (y > doc.internal.pageSize.getHeight() - 40) {
@@ -51,11 +49,18 @@ export function buildPdf(data: ReportData): Blob {
   }
 
   // title
-  doc.setFont('helvetica', 'bold').setFontSize(18).text('Space report', margin, y + 4)
+  doc
+    .setFont('helvetica', 'bold')
+    .setFontSize(18)
+    .text('Space report', margin, y + 4)
   doc.setFont('helvetica', 'normal').setFontSize(10)
   doc.text(pdfSafe(meta.server), margin, y + 11)
   doc.setTextColor(110)
-  doc.text(pdfSafe(`Generated ${dateTime(meta.generatedAt)} by ${meta.generatedBy || 'unknown'}`), margin, y + 16)
+  doc.text(
+    pdfSafe(`Generated ${dateTime(meta.generatedAt)} by ${meta.generatedBy || 'unknown'}`),
+    margin,
+    y + 16
+  )
   doc.setTextColor(0)
   y += 24
 
@@ -81,7 +86,8 @@ export function buildPdf(data: ReportData): Blob {
     tableWidth: half + 16,
     columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
     didParseCell: withHead((c) => {
-      if (c.section === 'body' && c.row.index === ovRows.length - 1) c.cell.styles.fontStyle = 'bold'
+      if (c.section === 'body' && c.row.index === ovRows.length - 1)
+        c.cell.styles.fontStyle = 'bold'
     })
   })
   const overviewEnd = nextY()
@@ -113,10 +119,20 @@ export function buildPdf(data: ReportData): Blob {
     startY: y,
     head: [['#', 'Space', 'Type', 'Full', 'Used / Quota']],
     body: s.fullest.length ? safeRows(s.fullest) : [['', 'No spaces with a quota', '', '', '']],
-    columnStyles: { 0: { halign: 'right', cellWidth: 8 }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+    columnStyles: {
+      0: { halign: 'right', cellWidth: 8 },
+      3: { halign: 'right' },
+      4: { halign: 'right' }
+    },
     didParseCell: withHead((c) => {
       const ratio = data.summary.fullest[c.row.index]?.ratio
-      if (c.section === 'body' && c.column.index === 3 && ratio !== null && ratio !== undefined && ratio * 100 >= meta.thresholdPercent) {
+      if (
+        c.section === 'body' &&
+        c.column.index === 3 &&
+        ratio !== null &&
+        ratio !== undefined &&
+        ratio * 100 >= meta.thresholdPercent
+      ) {
         c.cell.styles.textColor = [198, 40, 40]
         c.cell.styles.fontStyle = 'bold'
       }

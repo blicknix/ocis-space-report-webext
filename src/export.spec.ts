@@ -4,9 +4,21 @@ import { summarize, toRows } from './report'
 
 const GiB = 1024 ** 3
 const rows = toRows([
-  { id: 'p1', name: 'Jürgen | Müller', driveType: 'personal', owner: { user: { displayName: 'Jürgen Müller' } }, quota: { total: 10 * GiB, used: 9.5 * GiB } },
+  {
+    id: 'p1',
+    name: 'Jürgen | Müller',
+    driveType: 'personal',
+    owner: { user: { displayName: 'Jürgen Müller' } },
+    quota: { total: 10 * GiB, used: 9.5 * GiB }
+  },
   { id: 'p2', name: 'Bob', driveType: 'personal', quota: { used: 1 * GiB } },
-  { id: 's1', name: 'Projekt – X', driveType: 'project', quota: { total: 100 * GiB, used: 20 * GiB }, lastModifiedDateTime: '2026-09-30T10:00:00Z' }
+  {
+    id: 's1',
+    name: 'Projekt – X',
+    driveType: 'project',
+    quota: { total: 100 * GiB, used: 20 * GiB },
+    lastModifiedDateTime: '2026-09-30T10:00:00Z'
+  }
 ])
 
 const data = (over: Partial<ReportData['meta']> = {}): ReportData => ({
@@ -48,7 +60,9 @@ describe('buildMarkdown', () => {
 
 describe('orphans in exports', () => {
   it('adds key figures and the orphan table when the check ran', () => {
-    const orphaned = rows.map((r) => (r.id === 'p2' ? { ...r, orphan: 'owner-missing' as const } : { ...r, orphan: null }))
+    const orphaned = rows.map((r) =>
+      r.id === 'p2' ? { ...r, orphan: 'owner-missing' as const } : { ...r, orphan: null }
+    )
     const md = buildMarkdown({ ...data({ orphans: 'ok' }), rows: orphaned })
     expect(md).toContain('| Orphaned spaces | 1 |')
     expect(md).toContain('| Storage in orphaned spaces | 1.0 GB |')
@@ -58,7 +72,9 @@ describe('orphans in exports', () => {
   })
 
   it('says why the check is missing otherwise', () => {
-    expect(buildMarkdown(data({ orphans: 'skipped' }))).toContain('> Orphaned spaces were not checked (requires the Admin role).')
+    expect(buildMarkdown(data({ orphans: 'skipped' }))).toContain(
+      '> Orphaned spaces were not checked (requires the Admin role).'
+    )
     expect(buildMarkdown(data({ orphans: 'skipped' }))).not.toContain('## Orphaned spaces')
   })
 })
